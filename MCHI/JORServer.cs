@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using System.Windows.Forms;
 
 namespace MCHI
 {
@@ -163,6 +164,7 @@ namespace MCHI
         // 0x0A (ptr)Return (str)Message (str)Title (ulong)Unk
         OpenMessageBox   = 0x0A,
         StartNode        = 0x0C,
+        ShellExecute     = 0x0F,
     }
 
     enum EKind
@@ -488,6 +490,14 @@ namespace MCHI
             node.Status = JORNodeStatus.GenRequestSent;
         }
 
+        public void SendResultU32(uint retPtr, uint value = 1)
+        {
+            var stream = BeginSendEvent(JOREventType.ResultU32);
+            stream.Write(retPtr);
+            stream.Write(value);
+            SendEvent(stream);
+        }
+
         private void Assert(bool b)
         {
             if (!b)
@@ -789,6 +799,27 @@ namespace MCHI
                     return;
 
                 ProcessUpdateNode(stream, node);
+            }
+            else if (messageType == JORMessageType.OpenMessageBox)
+            {
+                uint retPtr = stream.ReadU32();
+                uint style = stream.ReadU32();
+                string msg = stream.ReadSJIS();
+                string title = stream.ReadSJIS();
+                MessageBox.Show(msg, title);
+                SendResultU32(retPtr);
+            }
+            else if (messageType == JORMessageType.ShellExecute)
+            {
+                uint retPtr = stream.ReadU32();
+                string str0 = stream.ReadSJIS();
+                string str1 = stream.ReadSJIS();
+                string str2 = stream.ReadSJIS();
+                string str3 = stream.ReadSJIS();
+                int unk4 = stream.ReadS32();
+                // not actually gonna ShellExecute lol
+                Debug.WriteLine("<- ShellExecute {0} {1} {2} {3} {4}", str0, str1, str2, str3, unk4);
+                SendResultU32(retPtr);
             }
             else
             {
