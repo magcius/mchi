@@ -262,12 +262,15 @@ namespace MCHI
 
         public override void Update(uint updateMode, MemoryInputStream stream)
         {
+            // ???
+            uint maskAgain = stream.ReadU32();
+
             base.Update(updateMode, stream);
 
             if ((updateMode & 0x02) != 0)
             {
-                Value = stream.ReadU16() != 0x00;
                 Mask = stream.ReadU16();
+                Value = stream.ReadU16() != 0x00;
             }
 
             AfterUpdate();

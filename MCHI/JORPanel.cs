@@ -332,10 +332,21 @@ namespace MCHI
 
         private void LayoutControl(Control control, ref int x, ref int y, JORControlLocation location)
         {
+            int height = location.Height;
+
+            control.Font = new System.Drawing.Font("Consolas", 12);
+
+            // Provided height is not enough in the Label case, it seems...
+            if (control is Label && !String.IsNullOrEmpty(control.Text))
+                height = (int)((float)height * 1.5f);
+
+            // add some extra padding
+            height += 6;
+
             if (location.Y < 0)
             {
                 control.Top = y;
-                y += location.Height;
+                y += height;
             }
             else
             {
@@ -352,7 +363,7 @@ namespace MCHI
             }
 
             control.Width = location.Width;
-            control.Height = location.Height;
+            control.Height = height;
         }
 
         private void BuildPanel(JORNode node)

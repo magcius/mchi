@@ -58,14 +58,14 @@ namespace MCHI
             | System.Windows.Forms.AnchorStyles.Left)));
             this.treeView1.Location = new System.Drawing.Point(13, 32);
             this.treeView1.Name = "treeView1";
-            this.treeView1.Size = new System.Drawing.Size(300, 390);
+            this.treeView1.Size = new System.Drawing.Size(300, 651);
             this.treeView1.TabIndex = 3;
             this.treeView1.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterSelect);
             // 
             // button1
             // 
             this.button1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.button1.Location = new System.Drawing.Point(14, 428);
+            this.button1.Location = new System.Drawing.Point(14, 689);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(300, 21);
             this.button1.TabIndex = 5;
@@ -82,7 +82,7 @@ namespace MCHI
             this.hexBox1.Name = "hexBox1";
             this.hexBox1.ReadOnly = true;
             this.hexBox1.ShadowSelectionColor = System.Drawing.Color.FromArgb(((int)(((byte)(100)))), ((int)(((byte)(60)))), ((int)(((byte)(188)))), ((int)(((byte)(255)))));
-            this.hexBox1.Size = new System.Drawing.Size(403, 444);
+            this.hexBox1.Size = new System.Drawing.Size(42, 705);
             this.hexBox1.StringViewVisible = true;
             this.hexBox1.TabIndex = 4;
             this.hexBox1.UseFixedBytesPerLine = true;
@@ -103,8 +103,8 @@ namespace MCHI
             // splitContainer1.Panel2
             // 
             this.splitContainer1.Panel2.Controls.Add(this.hexBox1);
-            this.splitContainer1.Size = new System.Drawing.Size(907, 444);
-            this.splitContainer1.SplitterDistance = 500;
+            this.splitContainer1.Size = new System.Drawing.Size(606, 705);
+            this.splitContainer1.SplitterDistance = 560;
             this.splitContainer1.TabIndex = 6;
             // 
             // ControlPanel
@@ -114,14 +114,14 @@ namespace MCHI
             this.ControlPanel.Dock = System.Windows.Forms.DockStyle.Fill;
             this.ControlPanel.Location = new System.Drawing.Point(0, 0);
             this.ControlPanel.Name = "ControlPanel";
-            this.ControlPanel.Size = new System.Drawing.Size(500, 444);
+            this.ControlPanel.Size = new System.Drawing.Size(560, 705);
             this.ControlPanel.TabIndex = 0;
             this.ControlPanel.TabStop = false;
             // 
             // button2
             // 
             this.button2.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.button2.Location = new System.Drawing.Point(14, 455);
+            this.button2.Location = new System.Drawing.Point(14, 716);
             this.button2.Name = "button2";
             this.button2.Size = new System.Drawing.Size(147, 21);
             this.button2.TabIndex = 7;
@@ -132,7 +132,7 @@ namespace MCHI
             // button3
             // 
             this.button3.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.button3.Location = new System.Drawing.Point(166, 455);
+            this.button3.Location = new System.Drawing.Point(166, 716);
             this.button3.Name = "button3";
             this.button3.Size = new System.Drawing.Size(147, 21);
             this.button3.TabIndex = 8;
@@ -144,14 +144,13 @@ namespace MCHI
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1239, 488);
+            this.ClientSize = new System.Drawing.Size(938, 749);
             this.Controls.Add(this.button3);
             this.Controls.Add(this.button2);
             this.Controls.Add(this.splitContainer1);
             this.Controls.Add(this.button1);
             this.Controls.Add(this.treeView1);
             this.Controls.Add(this.StatusLabel);
-            this.MaximizeBox = false;
             this.Name = "MainForm";
             this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
             this.Text = "Form1";
