@@ -1,6 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Drawing;
 using System.Windows.Forms;
 
 namespace MCHI
@@ -9,6 +8,9 @@ namespace MCHI
     {
         public JORServer Server;
         public JORNode Node;
+        private bool SuppressEvent = false;
+
+        const float RANGE_FLOAT_STEPS = 100.0f;
 
         public JORPanel(JORServer server, JORNode node)
         {
@@ -18,8 +20,74 @@ namespace MCHI
             BuildPanel(Node);
         }
 
+        private void SyncLabelFromJOR(Label label, JORControlLabel jorLabel)
+        {
+            label.Text = jorLabel.Name;
+        }
+
+        private void SyncButtonFromJOR(Button button, JORControlButton jorButton)
+        {
+        }
+
+        private void SyncCheckBoxFromJOR(CheckBox checkBox, JORControlCheckBox jorCheckBox)
+        {
+            this.SuppressEvent = true;
+            checkBox.Checked = jorCheckBox.Value;
+            this.SuppressEvent = false;
+        }
+
+        private void SyncRangeIntFromJOR(TrackBar trackBar, JORControlRangeInt jorRange)
+        {
+            this.SuppressEvent = true;
+            trackBar.Minimum = jorRange.RangeMin;
+            trackBar.Maximum = jorRange.RangeMax;
+            trackBar.TickStyle = (trackBar.Maximum - trackBar.Minimum > 20) ? TickStyle.None : TickStyle.BottomRight;
+            trackBar.Value = Math.Clamp(jorRange.Value, jorRange.RangeMin, jorRange.RangeMax);
+            this.SuppressEvent = false;
+        }
+
+        private void SyncRangeFloatFromJOR(TrackBar trackBar, JORControlRangeFloat jorRange)
+        {
+            this.SuppressEvent = true;
+            trackBar.Minimum = (int)(jorRange.RangeMin * RANGE_FLOAT_STEPS);
+            trackBar.Maximum = (int)(jorRange.RangeMax * RANGE_FLOAT_STEPS);
+            trackBar.TickStyle = (trackBar.Maximum - trackBar.Minimum > 20) ? TickStyle.None : TickStyle.BottomRight;
+            trackBar.Value = (int)(Math.Clamp(jorRange.Value, jorRange.RangeMin, jorRange.RangeMax) * RANGE_FLOAT_STEPS);
+            this.SuppressEvent = false;
+        }
+
+        private void SyncComboBoxFromJOR(ComboBox comboBox, JORControlSelector jorSelector)
+        {
+            this.SuppressEvent = true;
+            if (jorSelector.SelectedIndex < jorSelector.Items.Count)
+                comboBox.SelectedIndex = (int)jorSelector.SelectedIndex;
+            this.SuppressEvent = false;
+        }
+
+        private void SyncRadioButtonFromJOR(GroupBox groupBox, JORControlSelector jorSelector)
+        {
+            this.SuppressEvent = true;
+            for (int i = 0; i < groupBox.Controls.Count; i++)
+            {
+                RadioButton radioButton = groupBox.Controls[i] as RadioButton;
+                radioButton.Checked = i == jorSelector.SelectedIndex;
+            }
+            this.SuppressEvent = false;
+        }
+
+        private void SyncEditBoxFromJOR(TextBox textBox, JORControlEditBox jorEditBox)
+        {
+            this.SuppressEvent = true;
+            textBox.Text = jorEditBox.Text;
+            textBox.MaxLength = (int) jorEditBox.MaxChars;
+            this.SuppressEvent = false;
+        }
+
         private void OnButtonClick(Object obj, EventArgs args)
         {
+            if (this.SuppressEvent)
+                return;
+
             var button = obj as Button;
             var jorControl = button.Tag as JORControlButton;
             jorControl.Click(this.Server);
@@ -27,6 +95,9 @@ namespace MCHI
 
         private void OnCheckboxChecked(Object obj, EventArgs args)
         {
+            if (this.SuppressEvent)
+                return;
+
             var checkbox = obj as CheckBox;
             var jorControl = checkbox.Tag as JORControlCheckBox;
             jorControl.SetValue(this.Server, checkbox.Checked);
@@ -34,107 +105,120 @@ namespace MCHI
 
         private void OnSliderChangedInt(Object obj, EventArgs args)
         {
+            if (this.SuppressEvent)
+                return;
+
             var trackbar = obj as TrackBar;
             var jorControl = trackbar.Tag as JORControlRangeInt;
             jorControl.SetValue(this.Server, trackbar.Value);
         }
 
-        const float RANGE_FLOAT_STEPS = 100.0f;
-
         private void OnSliderChangedFloat(Object obj, EventArgs args)
         {
+            if (this.SuppressEvent)
+                return;
+
             var trackbar = obj as TrackBar;
             var jorControl = trackbar.Tag as JORControlRangeFloat;
             jorControl.SetValue(this.Server, trackbar.Value / RANGE_FLOAT_STEPS);
         }
 
-        private void OnTextBoxTextChanged(Object obj, EventArgs args)
-        {
-            var textbox = obj as TextBox;
-            var jorControl = textbox.Tag as JORControlEditBox;
-            jorControl.SetValue(this.Server, textbox.Text);
-        }
-
         private void OnComboBoxSelectedIndexChanged(Object obj, EventArgs args)
         {
+            if (this.SuppressEvent)
+                return;
+
             var combobox = obj as ComboBox;
             var jorControl = combobox.Tag as JORControlSelector;
             var jorControlItem = jorControl.Items[combobox.SelectedIndex];
-            jorControl.SetValue(this.Server, jorControlItem.Value);
+            jorControl.SetSelectedIndex(this.Server, jorControlItem.Value);
         }
 
-        private void OnRadioButtonSelectedIndexChanged(Object obj, EventArgs args)
+        private void OnRadioButtonCheckedChanged(Object obj, EventArgs args)
         {
+            if (this.SuppressEvent)
+                return;
+
             var radiobutton = obj as RadioButton;
             if (!radiobutton.Checked)
                 return;
             var gb = radiobutton.Parent as GroupBox;
             var jorControl = gb.Tag as JORControlSelector;
             var jorControlItem = radiobutton.Tag as JORControlSelectorItem;
-            jorControl.SetValue(this.Server, jorControlItem.Value);
+            jorControl.SetSelectedIndex(this.Server, jorControlItem.Value);
+        }
+
+        private void OnTextBoxTextChanged(Object obj, EventArgs args)
+        {
+            if (this.SuppressEvent)
+                return;
+
+            var textbox = obj as TextBox;
+            var jorControl = textbox.Tag as JORControlEditBox;
+            jorControl.SetValue(this.Server, textbox.Text);
         }
 
         private Control MakeControl(JORControl jorControl)
         {
             if (jorControl.Type == "LABL")
             {
+                var jorLabel = jorControl as JORControlLabel;
                 Label label = new Label();
-                label.Text = jorControl.Name;
+                SyncLabelFromJOR(label, jorLabel);
                 return label;
             }
             else if (jorControl.Type == "BUTN")
             {
+                var jorButton = jorControl as JORControlButton;
                 Button button = new Button();
                 button.Text = jorControl.Name;
                 button.Tag = jorControl;
+                SyncButtonFromJOR(button, jorButton);
+                jorButton.Updated += () =>
+                {
+                    SyncButtonFromJOR(button, jorButton);
+                };
+
                 button.Click += OnButtonClick;
                 return button;
             }
             else if (jorControl.Type == "CHBX")
             {
                 var jorCheckBox = jorControl as JORControlCheckBox;
-                CheckBox c = new CheckBox();
-                c.Tag = jorCheckBox;
-                c.Text = jorCheckBox.Name;
-                c.Checked = jorCheckBox.Value;
-                c.CheckedChanged += OnCheckboxChecked;
-                return c;
-            }
-            else if (jorControl.Type == "EDBX")
-            {
-                var jorEditBox = jorControl as JORControlEditBox;
-                var table = new TableLayoutPanel();
-                table.RowCount = 1;
-                table.ColumnCount = 2;
-                var label = new Label();
-                label.Text = jorEditBox.Name;
-                table.Controls.Add(label);
-                var textbox = new TextBox();
-                textbox.Tag = jorEditBox;
-                textbox.Text = jorEditBox.Text;
-                textbox.MaxLength = (int)jorEditBox.MaxChars;
-                textbox.TextChanged += OnTextBoxTextChanged;
-                return table;
+                CheckBox checkBox = new CheckBox();
+                checkBox.Tag = jorCheckBox;
+                checkBox.Text = jorCheckBox.Name;
+                SyncCheckBoxFromJOR(checkBox, jorCheckBox);
+                jorCheckBox.Updated += () =>
+                {
+                    SyncCheckBoxFromJOR(checkBox, jorCheckBox);
+                };
+
+                checkBox.CheckedChanged += OnCheckboxChecked;
+                return checkBox;
             }
             else if (jorControl.Type == "RNGi")
             {
                 var jorRange = jorControl as JORControlRangeInt;
                 var table = new TableLayoutPanel();
+                table.CellBorderStyle = TableLayoutPanelCellBorderStyle.OutsetDouble;
                 table.RowCount = 1;
                 table.ColumnCount = 2;
                 var label = new Label();
+                label.Width = jorControl.Location.Width / 2;
                 label.Text = jorRange.Name;
                 table.Controls.Add(label);
-                TrackBar t = new TrackBar();
-                t.Tag = jorRange;
-                // drawing tickmarks seems to be incredibly slow https://bugs.freepascal.org/view.php?id=36046
-                t.TickStyle = TickStyle.None;
-                t.Minimum = jorRange.RangeMin;
-                t.Maximum = jorRange.RangeMax;
-                if (jorRange.Value >= jorRange.RangeMin && jorRange.Value <= jorRange.RangeMax)
-                    t.Value = (int)jorRange.Value;
-                t.ValueChanged += OnSliderChangedInt;
-                table.Controls.Add(t);
+                TrackBar trackBar = new TrackBar();
+                trackBar.Width = jorControl.Location.Width / 2;
+                trackBar.Tag = jorRange;
+                SyncRangeIntFromJOR(trackBar, jorRange);
+                jorRange.Updated += () =>
+                {
+                    SyncRangeIntFromJOR(trackBar, jorRange);
+                };
+
+                table.Controls.Add(trackBar);
+                trackBar.ValueChanged += OnSliderChangedInt;
                 return table;
             }
             else if (jorControl.Type == "RNGf")
@@ -146,47 +230,80 @@ namespace MCHI
                 var label = new Label();
                 label.Text = jorRange.Name;
                 table.Controls.Add(label);
-                TrackBar t = new TrackBar();
-                t.Tag = jorRange;
-                // drawing tickmarks seems to be incredibly slow https://bugs.freepascal.org/view.php?id=36046
-                t.TickStyle = TickStyle.None;
-                t.Minimum = (int)(jorRange.RangeMin * RANGE_FLOAT_STEPS);
-                t.Maximum = (int)(jorRange.RangeMax * RANGE_FLOAT_STEPS);
-                if (jorRange.Value >= jorRange.RangeMin && jorRange.Value <= jorRange.RangeMax)
-                    t.Value = (int)(jorRange.Value * RANGE_FLOAT_STEPS);
-                t.ValueChanged += OnSliderChangedFloat;
-                table.Controls.Add(t);
+                TrackBar trackBar = new TrackBar();
+                trackBar.Tag = jorRange;
+                SyncRangeFloatFromJOR(trackBar, jorRange);
+                jorRange.Updated += () =>
+                {
+                    SyncRangeFloatFromJOR(trackBar, jorRange);
+                };
+
+                trackBar.ValueChanged += OnSliderChangedFloat;
+                table.Controls.Add(trackBar);
                 return table;
             }
             else if (jorControl.Type == "CMBX")
             {
                 var jorSelector = jorControl as JORControlSelector;
-                var c = new ComboBox();
-                c.Tag = jorSelector;
-                c.DropDownStyle = ComboBoxStyle.DropDownList;
-                c.Text = jorSelector.Name;
+                var comboBox = new ComboBox();
+                comboBox.Tag = jorSelector;
+                comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+                comboBox.Text = jorSelector.Name;
                 foreach (var item in jorSelector.Items)
-                    c.Items.Add(item.Name);
-                if (jorSelector.Value < jorSelector.Items.Count)
-                    c.SelectedIndex = (int)jorSelector.Value;
-                c.SelectedIndexChanged += OnComboBoxSelectedIndexChanged;
-                return c;
+                    comboBox.Items.Add(item.Name);
+
+                SyncComboBoxFromJOR(comboBox, jorSelector);
+                jorSelector.Updated += () =>
+                {
+                    SyncComboBoxFromJOR(comboBox, jorSelector);
+                };
+
+                comboBox.SelectedIndexChanged += OnComboBoxSelectedIndexChanged;
+                return comboBox;
             }
             else if (jorControl.Type == "RBTN")
             {
                 var jorSelector = jorControl as JORControlSelector;
-                var g = new GroupBox();
-                g.Tag = jorSelector;
-                g.Text = jorSelector.Name;
+                var groupBox = new GroupBox();
+                groupBox.Tag = jorSelector;
+                groupBox.Text = jorSelector.Name;
                 foreach (var item in jorSelector.Items)
                 {
-                    var c = new RadioButton();
-                    c.Text = item.Name;
-                    c.Tag = item;
-                    g.Controls.Add(c);
+                    var radioButton = new RadioButton();
+                    radioButton.CheckedChanged += OnRadioButtonCheckedChanged;
+                    radioButton.Text = item.Name;
+                    radioButton.Tag = item;
+                    groupBox.Controls.Add(radioButton);
                 }
-                g.Controls[(int)jorSelector.Value].Enabled = true;
-                return g;
+
+                SyncRadioButtonFromJOR(groupBox, jorSelector);
+                jorSelector.Updated = () =>
+                {
+                    SyncRadioButtonFromJOR(groupBox, jorSelector);
+                };
+
+                return groupBox;
+            }
+            else if (jorControl.Type == "EDBX")
+            {
+                var jorEditBox = jorControl as JORControlEditBox;
+                var table = new TableLayoutPanel();
+                table.RowCount = 1;
+                table.ColumnCount = 2;
+                var label = new Label();
+                label.Text = jorEditBox.Name;
+                table.Controls.Add(label);
+                var textBox = new TextBox();
+                textBox.Tag = jorEditBox;
+
+                SyncEditBoxFromJOR(textBox, jorEditBox);
+                jorEditBox.Updated = () =>
+                {
+                    SyncEditBoxFromJOR(textBox, jorEditBox);
+                };
+
+                textBox.TextChanged += OnTextBoxTextChanged;
+                return table;
             }
             else if (jorControl.Type == "GRBX")
             {

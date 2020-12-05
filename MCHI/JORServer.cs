@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
@@ -194,9 +195,22 @@ namespace MCHI
         public JORControlLocation Location;
         public JORNode Node;
 
-        public void Update(uint updateMode, MemoryInputStream stream)
+        public delegate void UpdatedDelegate();
+        public UpdatedDelegate Updated;
+
+        protected void AfterUpdate()
         {
-            // TODO
+            if (Updated != null)
+                Updated();
+        }
+
+        public virtual void Update(uint updateMode, MemoryInputStream stream)
+        {
+            if ((updateMode & 0x01) != 0)
+            {
+                // Style?
+                uint unk1 = stream.ReadU32();
+            }
         }
 
         protected MemoryOutputStream BeginSendPropertyEvent(JORServer server)
@@ -216,6 +230,21 @@ namespace MCHI
     {
     }
 
+    class JORControlLabel : JORControl
+    {
+        public override void Update(uint updateMode, MemoryInputStream stream)
+        {
+            base.Update(updateMode, stream);
+
+            if ((updateMode & 0x02) != 0)
+            {
+                Name = stream.ReadSJIS();
+            }
+
+            AfterUpdate();
+        }
+    }
+
     class JORControlButton : JORControl
     {
         public void Click(JORServer server)
@@ -230,6 +259,19 @@ namespace MCHI
     {
         public uint Mask = 0;
         public bool Value = false;
+
+        public override void Update(uint updateMode, MemoryInputStream stream)
+        {
+            base.Update(updateMode, stream);
+
+            if ((updateMode & 0x02) != 0)
+            {
+                Value = stream.ReadU16() != 0x00;
+                Mask = stream.ReadU16();
+            }
+
+            AfterUpdate();
+        }
 
         private void SendPropertyEvent(JORServer server)
         {
@@ -264,6 +306,24 @@ namespace MCHI
             server.SendEvent(stream);
         }
 
+        public override void Update(uint updateMode, MemoryInputStream stream)
+        {
+            base.Update(updateMode, stream);
+
+            if ((updateMode & 0x02) != 0)
+            {
+                Value = stream.ReadS32();
+            }
+
+            if ((updateMode & 0x04) != 0)
+            {
+                RangeMin = stream.ReadS32();
+                RangeMax = stream.ReadS32();
+            }
+
+            AfterUpdate();
+        }
+
         public void SetValue(JORServer server, int newValue)
         {
             if (newValue == Value)
@@ -288,12 +348,73 @@ namespace MCHI
             server.SendEvent(stream);
         }
 
+        public override void Update(uint updateMode, MemoryInputStream stream)
+        {
+            base.Update(updateMode, stream);
+
+            if ((updateMode & 0x02) != 0)
+            {
+                Value = stream.ReadF32();
+            }
+
+            if ((updateMode & 0x04) != 0)
+            {
+                RangeMin = stream.ReadF32();
+                RangeMax = stream.ReadF32();
+            }
+
+            AfterUpdate();
+        }
+
         public void SetValue(JORServer server, float newValue)
         {
             if (newValue == Value)
                 return;
 
             Value = newValue;
+            SendPropertyEvent(server);
+        }
+    }
+
+    class JORControlSelectorItem
+    {
+        public string Name;
+        public uint Value;
+        public uint Unk3;
+        public JORControlLocation Location;
+    }
+
+    class JORControlSelector : JORControl
+    {
+        public List<JORControlSelectorItem> Items = new List<JORControlSelectorItem>();
+        public uint SelectedIndex;
+
+        private void SendPropertyEvent(JORServer server)
+        {
+            var stream = BeginSendPropertyEvent(server);
+            stream.Write(4);
+            stream.Write(SelectedIndex);
+            server.SendEvent(stream);
+        }
+
+        public override void Update(uint updateMode, MemoryInputStream stream)
+        {
+            base.Update(updateMode, stream);
+
+            if ((updateMode & 0x02) != 0)
+            {
+                SelectedIndex = stream.ReadU32();
+            }
+
+            AfterUpdate();
+        }
+
+        public void SetSelectedIndex(JORServer server, uint newSelectedIndex)
+        {
+            if (newSelectedIndex == SelectedIndex)
+                return;
+
+            SelectedIndex = newSelectedIndex;
             SendPropertyEvent(server);
         }
     }
@@ -313,43 +434,28 @@ namespace MCHI
             server.SendEvent(stream);
         }
 
+        public override void Update(uint updateMode, MemoryInputStream stream)
+        {
+            base.Update(updateMode, stream);
+
+            if ((updateMode & 0x02) != 0)
+            {
+                Text = stream.ReadSJIS();
+            }
+            if ((updateMode & 0x10) != 0)
+            {
+                MaxChars = stream.ReadU16();
+            }
+
+            AfterUpdate();
+        }
+
         public void SetValue(JORServer server, string newValue)
         {
             if (newValue == Text)
                 return;
 
             Text = newValue;
-            SendPropertyEvent(server);
-        }
-    }
-
-    class JORControlSelectorItem
-    {
-        public string Name;
-        public uint Value;
-        public uint Unk3;
-        public JORControlLocation Location;
-    }
-
-    class JORControlSelector : JORControl
-    {
-        public List<JORControlSelectorItem> Items = new List<JORControlSelectorItem>();
-        public uint Value;
-
-        private void SendPropertyEvent(JORServer server)
-        {
-            var stream = BeginSendPropertyEvent(server);
-            stream.Write(4);
-            stream.Write(Value);
-            server.SendEvent(stream);
-        }
-
-        public void SetValue(JORServer server, uint newValue)
-        {
-            if (newValue == Value)
-                return;
-
-            Value = newValue;
             SendPropertyEvent(server);
         }
     }
@@ -483,7 +589,7 @@ namespace MCHI
 
         public void SendGenObjectInfo(JORNode node)
         {
-            Debug.WriteLine("-> GenObjectInfo 0x{0:X8}", node.NodePtr);
+            Debug.WriteLine("-> GenObjectInfo {0} 0x{1:X8}", node.Name, node.NodePtr);
             var stream = BeginSendEvent(JOREventType.GenObjectInfo);
             stream.Write(node.NodePtr);
             SendEvent(stream);
@@ -516,7 +622,7 @@ namespace MCHI
 
             uint nodePtr = stream.ReadU32();
 
-            Debug.WriteLine("<- ORef GenNodeSub {0} 0x{1:X8}", name, nodePtr);
+            // Debug.WriteLine("<- ORef GenNodeSub {0} 0x{1:X8}", name, nodePtr);
 
             if (node == null)
             {
@@ -570,18 +676,20 @@ namespace MCHI
             string controlType = stream.ReadMagic();
 
             JORControl control;
-            if (controlType == "RNGi")
+            if (controlType == "LABL")
+                control = new JORControlLabel();
+            else if (controlType == "BUTN")
+                control = new JORControlButton();
+            else if (controlType == "CHBX")
+                control = new JORControlCheckBox();
+            else if (controlType == "RNGi")
                 control = new JORControlRangeInt();
             else if (controlType == "RNGf")
                 control = new JORControlRangeFloat();
-            else if (controlType == "EDBX")
-                control = new JORControlEditBox();
             else if (controlType == "CMBX" || controlType == "RBTN")
                 control = new JORControlSelector();
-            else if (controlType == "CHBX")
-                control = new JORControlCheckBox();
-            else if (controlType == "BUTN")
-                control = new JORControlButton();
+            else if (controlType == "EDBX")
+                control = new JORControlEditBox();
             else
                 control = new JORControlImmutable();
 
@@ -591,7 +699,7 @@ namespace MCHI
             control.Name = stream.ReadSJIS();
             control.Style = stream.ReadU32();
             control.ID = stream.ReadU32();
-            Debug.WriteLine("<- Control {0} {1} {2}", control.Type, control.Kind, control.Name);
+            // Debug.WriteLine("<- Control {0} {1} {2}", control.Type, control.Kind, control.Name);
 
             if ((control.Kind & EKind.HasListener) != 0)
             {
@@ -652,7 +760,7 @@ namespace MCHI
             return control;
         }
 
-        private void ProcessObjectInfo(MemoryInputStream stream)
+        private void ProcessObjectInfo(MemoryInputStream stream, bool writeFirstNode = false)
         {
             JORControlSelector currentSelector = null;
             Stack<JORNode> nodeStack = new Stack<JORNode>();
@@ -662,15 +770,21 @@ namespace MCHI
             {
                 JORMessageCommand command = (JORMessageCommand)stream.ReadU32();
 
-                Debug.WriteLine("<- ORef MessageCommand {0}", command);
+                // Debug.WriteLine("<- ORef MessageCommand {0}", command);
 
                 if (command == JORMessageCommand.StartNode)
                 {
-                    node = ReadGenNodeSub(stream, true);
-                    Debug.WriteLine("StartNodeClear  {0}", node);
                     nodeStack.Push(node);
-                    node.Children.Clear();
-                    node.Controls.Clear();
+                    node = ReadGenNodeSub(stream, true);
+                    Debug.WriteLine("<- GenObjectInfo Stack {2} Ptr 0x{1:X8} {0}", node.Name, node.NodePtr, nodeStack.Count);
+
+                    JORNode parentNode = nodeStack.Peek();
+                    if (parentNode != null)
+                        parentNode.AddChild(node);
+
+                    // Debug.WriteLine("StartNodeClear  {0}", node);
+
+                    node.Invalidate();
                 }
                 else if (command == JORMessageCommand.EndNode)
                 {
@@ -680,6 +794,7 @@ namespace MCHI
                 else if (command == JORMessageCommand.GenNode)
                 {
                     JORNode child = ReadGenNodeSub(stream, true);
+                    child.Invalidate();
                     node.AddChild(child);
                 }
                 else if (command == JORMessageCommand.GenControl)
@@ -712,6 +827,9 @@ namespace MCHI
                     throw new Exception("Unknown message type");
                 }
             }
+
+            Debug.Assert(nodeStack.Count == 0);
+            Debug.Assert(node == null);
         }
 
         private void ProcessUpdateNode(MemoryInputStream stream, JORNode node)
@@ -720,7 +838,7 @@ namespace MCHI
             {
                 JORMessageCommand command = (JORMessageCommand)stream.ReadU32();
 
-                Debug.WriteLine("<- ORef ProcessUpdate {0}", command);
+                // Debug.WriteLine("<- ORef ProcessUpdate {0}", command);
 
                 if (command == JORMessageCommand.UpdateControl)
                 {
@@ -733,9 +851,6 @@ namespace MCHI
                         // No clue about this control; can't parse.
                         return;
                     }
-
-                    // TODO: The rest
-                    return;
 
                     control.Update(updateMode, stream);
                 }
@@ -758,7 +873,7 @@ namespace MCHI
             {
                 Assert(stream.ReadU32() == 0x07u);
                 JORNode node = ReadNodeID(stream);
-                Debug.WriteLine("<- InvalidNode {0}", node);
+                // Debug.WriteLine("<- InvalidNode {0}", node);
                 if (node != null)
                     node.Invalidate();
                 Assert(stream.ReadU32() == 0x03u);
@@ -772,7 +887,7 @@ namespace MCHI
             else if (messageType == JORMessageType.GenObjectInfo)
             {
                 // Reply from GenObjectInfo request
-                ProcessObjectInfo(stream);
+                ProcessObjectInfo(stream, true);
             }
             else if (messageType == JORMessageType.StartNode)
             {
@@ -785,7 +900,7 @@ namespace MCHI
                     uint unk1 = stream.ReadU32();
                     JORNode parentNode = ReadNodeID(stream);
                     JORNode node = ReadGenNodeSub(stream, true);
-                    Debug.WriteLine("<- StartNode {0} Parent = 0x{1:X8}", node?.Name, parentNode);
+                    // Debug.WriteLine("<- StartNode {0} Parent = 0x{1:X8}", node?.Name, parentNode);
                 }
                 else if (mode == 11u)
                 {

@@ -29,27 +29,28 @@ namespace MCHI
         /// </summary>
         private void InitializeComponent()
         {
-            this.ClientCountLabel = new System.Windows.Forms.Label();
+            this.StatusLabel = new System.Windows.Forms.Label();
             this.treeView1 = new System.Windows.Forms.TreeView();
             this.button1 = new System.Windows.Forms.Button();
             this.hexBox1 = new Be.Windows.Forms.HexBox();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.ControlPanel = new System.Windows.Forms.GroupBox();
             this.button2 = new System.Windows.Forms.Button();
+            this.button3 = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
             this.splitContainer1.SuspendLayout();
             this.SuspendLayout();
             // 
-            // ClientCountLabel
+            // StatusLabel
             // 
-            this.ClientCountLabel.AutoSize = true;
-            this.ClientCountLabel.Location = new System.Drawing.Point(13, 13);
-            this.ClientCountLabel.Name = "ClientCountLabel";
-            this.ClientCountLabel.Size = new System.Drawing.Size(38, 15);
-            this.ClientCountLabel.TabIndex = 0;
-            this.ClientCountLabel.Text = "label1";
+            this.StatusLabel.AutoSize = true;
+            this.StatusLabel.Location = new System.Drawing.Point(13, 13);
+            this.StatusLabel.Name = "StatusLabel";
+            this.StatusLabel.Size = new System.Drawing.Size(38, 15);
+            this.StatusLabel.TabIndex = 0;
+            this.StatusLabel.Text = "label1";
             // 
             // treeView1
             // 
@@ -57,16 +58,16 @@ namespace MCHI
             | System.Windows.Forms.AnchorStyles.Left)));
             this.treeView1.Location = new System.Drawing.Point(13, 32);
             this.treeView1.Name = "treeView1";
-            this.treeView1.Size = new System.Drawing.Size(300, 405);
+            this.treeView1.Size = new System.Drawing.Size(300, 390);
             this.treeView1.TabIndex = 3;
             this.treeView1.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.treeView1_AfterSelect);
             // 
             // button1
             // 
             this.button1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.button1.Location = new System.Drawing.Point(155, 443);
+            this.button1.Location = new System.Drawing.Point(14, 428);
             this.button1.Name = "button1";
-            this.button1.Size = new System.Drawing.Size(158, 32);
+            this.button1.Size = new System.Drawing.Size(300, 21);
             this.button1.TabIndex = 5;
             this.button1.Text = "Sync JOR Tree";
             this.button1.UseVisualStyleBackColor = true;
@@ -120,24 +121,36 @@ namespace MCHI
             // button2
             // 
             this.button2.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.button2.Location = new System.Drawing.Point(12, 444);
+            this.button2.Location = new System.Drawing.Point(14, 455);
             this.button2.Name = "button2";
-            this.button2.Size = new System.Drawing.Size(137, 32);
+            this.button2.Size = new System.Drawing.Size(147, 21);
             this.button2.TabIndex = 7;
-            this.button2.Text = "Request JOR Root";
+            this.button2.Text = "Req JOR Root";
             this.button2.UseVisualStyleBackColor = true;
             this.button2.Click += new System.EventHandler(this.button2_Click);
+            // 
+            // button3
+            // 
+            this.button3.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.button3.Location = new System.Drawing.Point(166, 455);
+            this.button3.Name = "button3";
+            this.button3.Size = new System.Drawing.Size(147, 21);
+            this.button3.TabIndex = 8;
+            this.button3.Text = "Req Selected JOR Node";
+            this.button3.UseVisualStyleBackColor = true;
+            this.button3.Click += new System.EventHandler(this.button3_Click);
             // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1239, 488);
+            this.Controls.Add(this.button3);
             this.Controls.Add(this.button2);
             this.Controls.Add(this.splitContainer1);
             this.Controls.Add(this.button1);
             this.Controls.Add(this.treeView1);
-            this.Controls.Add(this.ClientCountLabel);
+            this.Controls.Add(this.StatusLabel);
             this.MaximizeBox = false;
             this.Name = "MainForm";
             this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
@@ -154,13 +167,14 @@ namespace MCHI
 
         #endregion
 
-        private System.Windows.Forms.Label ClientCountLabel;
+        private System.Windows.Forms.Label StatusLabel;
         private System.Windows.Forms.TreeView treeView1;
         private System.Windows.Forms.Button button1;
         private Be.Windows.Forms.HexBox hexBox1;
         private System.Windows.Forms.SplitContainer splitContainer1;
         private System.Windows.Forms.GroupBox ControlPanel;
         private System.Windows.Forms.Button button2;
+        private System.Windows.Forms.Button button3;
     }
 }
 

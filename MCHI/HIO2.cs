@@ -1,8 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
+using System.Collections.Generic;
+using System.IO.MemoryMappedFiles;
 using System.Text;
 using System.Threading;
 
@@ -11,15 +10,6 @@ namespace MCHI
     static class JHI
     {
         public static bool StrEq(byte[] buf, int offset, string s)
-        {
-            byte[] chars = Encoding.ASCII.GetBytes(s);
-            for (int i = 0; i < chars.Length; i++)
-                if (chars[i] != buf[offset + i])
-                    return false;
-            return true;
-        }
-
-        public static bool StrEq(List<byte> buf, int offset, string s)
         {
             byte[] chars = Encoding.ASCII.GetBytes(s);
             for (int i = 0; i < chars.Length; i++)
@@ -92,24 +82,32 @@ namespace MCHI
 
         public bool IsReady()
         {
-            return JHI.StrEq(hio2.buf, MAGIC_OFFSET, MAGIC_CODE);
+            return JHI.StrEq(hio2.ReadBytes(MAGIC_OFFSET, 4), 0, MAGIC_CODE);
         }
 
         private void SyncPointsFromHIO2()
         {
+            Debug.Assert(this.pointR >= DATA_OFFSET);
+            Debug.Assert(this.pointW >= DATA_OFFSET);
+
             // Update our R/W points
             this.pointR = hio2.ReadU32(this.baseOffset + READ_OFFSET);
             this.pointW = hio2.ReadU32(this.baseOffset + WRITE_OFFSET);
+
+            Debug.Assert(this.pointR >= DATA_OFFSET);
+            Debug.Assert(this.pointW >= DATA_OFFSET);
         }
 
         private void SyncReadPointToHIO2()
         {
             hio2.WriteU32(this.baseOffset + READ_OFFSET, this.pointR);
+            SyncPointsFromHIO2();
         }
 
         private void SyncWritePointToHIO2()
         {
             hio2.WriteU32(this.baseOffset + WRITE_OFFSET, this.pointW);
+            SyncPointsFromHIO2();
         }
 
         public byte[] ReadData()
@@ -149,6 +147,8 @@ namespace MCHI
 
             hio2.ReadBytes(ref data, data_offs, this.baseOffset + DATA_OFFSET + pointRZ, size);
 
+            Debug.Assert(JHI.StrEq(data, 0, MAGIC_CODE));
+
             // Update our read point to match.
             this.pointR = this.pointW;
             SyncReadPointToHIO2();
@@ -166,13 +166,13 @@ namespace MCHI
 
         private int WriteMessage(int dstOffs, byte[] src, int srcOffs, int size)
         {
-            hio2.WriteBytes(dstOffs + 0x00, Encoding.ASCII.GetBytes(MAGIC_CODE), 4);
+            hio2.WriteBytes(dstOffs + 0x00, Encoding.ASCII.GetBytes(MAGIC_CODE));
             hio2.WriteBytes(dstOffs + 0x04, BitConverter.GetBytes(JHI.SwapBytes((ushort)size)));
-            for (int i = 0x00; i < size; i++)
-                hio2.WriteByte(dstOffs + 0x06 + i, src[srcOffs + i]);
+            hio2.WriteBytes(dstOffs + 0x06, src, srcOffs, size);
             int fullSize = GetFullMessageSize(size);
-            for (int i = 0x06 + size; i < fullSize; i++)
-                hio2.WriteByte(dstOffs + i, 0);
+            int numZeroesToWrite = fullSize - (0x06 + size);
+            byte[] zeroes = new byte[numZeroesToWrite];
+            hio2.WriteBytes(dstOffs + 0x06 + size, zeroes);
             return fullSize;
         }
 
@@ -187,23 +187,26 @@ namespace MCHI
             int pointWZ = this.pointW - DATA_OFFSET;
             int pointRZ = this.pointR - DATA_OFFSET;
 
+            // If necessary, wait for Dolphin to read data from the ring buffer before continuing.
+            while (((pointWZ + 0x20) % this.bufDataSize) == pointRZ)
+            {
+                Thread.Sleep(16);
+                SyncPointsFromHIO2();
+                pointWZ = this.pointW - DATA_OFFSET;
+                pointRZ = this.pointR - DATA_OFFSET;
+            }
+
             int dataOffs = 0;
             while (dataOffs < data.Length)
             {
                 // See how many bytes are available to write in the current "run" -- meaning, no wraparound.
                 int pointEndZ = pointWZ < pointRZ ? pointRZ : this.bufDataSize;
-                int availableToWrite = pointEndZ - pointWZ;
-
-                if (availableToWrite < 0x06)
-                {
-                    // Literally no space available... Just sleep until we have enough?
-                    Thread.Sleep(16);
-                }
+                int availableToWrite = pointEndZ - pointWZ - 0x20;
 
                 int remainingBytes = data.Length - dataOffs;
 
                 // Remember to leave space for the header.
-                int bytesToWrite = Math.Min(availableToWrite - 0x06, remainingBytes);
+                int bytesToWrite = Math.Min(availableToWrite, remainingBytes);
 
                 int fullSize = WriteMessage(DATA_OFFSET + pointWZ, data, dataOffs, bytesToWrite);
                 dataOffs += bytesToWrite;
@@ -267,6 +270,7 @@ namespace MCHI
         private HIO2ServerClient hio2;
         private JHIMccBuf dolphinToPC;
         private JHIMccBuf pcToDolphin;
+        private ByteBuffer tagRecvBuffer = new ByteBuffer();
 
         public JHIClient(HIO2ServerClient hio2)
         {
@@ -283,29 +287,37 @@ namespace MCHI
 
         private void ProcessTags(ByteBuffer tagBuffer)
         {
-            if (tagBuffer.Data.Length < 0x08)
+            while (true)
             {
-                // Not enough data...
-                return;
+                if (tagBuffer.Data.Length < 0x08)
+                {
+                    // Not enough data...
+                    return;
+                }
+
+                string tagMagic = Encoding.ASCII.GetString(tagBuffer.Data, 0x00, 0x04);
+                IJHITagProcessor processor = tagDispatch[tagMagic];
+
+                int tagSize = JHI.SwapBytes(BitConverter.ToInt32(tagBuffer.Data, 0x04));
+                if (tagBuffer.Data.Length < 0x08 + tagSize)
+                {
+                    // Not enough data...
+                    return;
+                }
+
+                // Tag is done!
+                JHITag tag = new JHITag();
+                tag.Magic = tagMagic;
+                tag.Data = tagBuffer.Data.AsSpan(0x08, tagSize).ToArray();
+                tagBuffer.DoneReading(0x08 + tagSize);
+
+                processor.ProcessTag(tag);
             }
+        }
 
-            string tagMagic = Encoding.ASCII.GetString(tagBuffer.Data, 0x00, 0x04);
-            IJHITagProcessor processor = tagDispatch[tagMagic];
-
-            int tagSize = JHI.SwapBytes(BitConverter.ToInt32(tagBuffer.Data, 0x04));
-            if (tagBuffer.Data.Length < 0x08 + tagSize)
-            {
-                // Not enough data...
-                return;
-            }
-
-            // Tag is done!
-            JHITag tag = new JHITag();
-            tag.Magic = tagMagic;
-            tag.Data = tagBuffer.Data.AsSpan(0x08, tagSize).ToArray();
-            tagBuffer.DoneReading(0x08 + tagSize);
-
-            processor.ProcessTag(tag);
+        public int GetUnprocessedDataSize()
+        {
+            return this.tagRecvBuffer.Data.Length;
         }
 
         private void ProcessChunks(ByteBuffer outBuffer, byte[] data)
@@ -329,8 +341,6 @@ namespace MCHI
                 offs = (offs + 0x1F) & ~0x1F;
             }
         }
-
-        ByteBuffer tagRecvBuffer = new ByteBuffer();
 
         public void Update()
         {
@@ -366,67 +376,31 @@ namespace MCHI
     {
         const int EXIUSB_SHM_BASE = 0xd10000;
         const int EXIUSB_SHM_SIZE = 0x002000;
+        const string DISCONNECT_CODE = "Kbai";
 
-        public List<byte> buf = new List<byte>(EXIUSB_SHM_SIZE);
         public HIO2Server server;
-        public IPEndPoint sender;
+        public MemoryMappedFile file;
+        public MemoryMappedViewAccessor accessor;
 
-        public HIO2ServerClient(HIO2Server server, IPEndPoint sender)
+        public HIO2ServerClient(HIO2Server server, string filename)
         {
             this.server = server;
-            this.sender = sender;
-            for (int i = 0; i < EXIUSB_SHM_SIZE; i++)
-                buf.Add(0);
+            this.file = MemoryMappedFile.CreateOrOpen(filename, EXIUSB_SHM_SIZE);
+            this.accessor = this.file.CreateViewAccessor();
         }
 
-        public delegate void WriteDelegate(HIO2ServerClient client, int offs, int size);
-
-        public WriteDelegate Write = null;
-
-        private bool BufSet(int buf_idx, byte v)
+        public bool IsConnected()
         {
-            if (buf_idx < 0 || buf_idx >= buf.Count)
-            {
-                // bad data!
-                return false;
-            }
-
-            buf[buf_idx] = v;
-            if (Write != null)
-                Write(this, buf_idx, 1);
-            return true;
+            return JHI.StrEq(ReadBytes(0x00, 0x04), 0x00, JHIMccBuf.MAGIC_CODE);
         }
 
-        public void ReceiveMessage(byte[] data)
-        {
-            if (data.Length == 4)
-            {
-                // read/write buf
-                int buf_idx = BitConverter.ToInt16(data);
-
-                byte cmd = data[2];
-                byte v = data[3];
-
-                bool is_write = cmd == 'W';
-                if (is_write)
-                    BufSet(buf_idx, v);
-            }
-        }
-
-        public void WriteByte(int buf_idx, byte v)
-        {
-            if (BufSet(buf_idx, v))
-            {
-                server.SendCommand(buf_idx, 'W', v, this);
-            }
-        }
-
-        public void WriteBytes(int buf_idx, byte[] data, int size = -1)
+        public void WriteBytes(int buf_idx, byte[] src, int src_offs = 0, int size = -1)
         {
             if (size < 0)
-                size = data.Length;
-            for (int i = 0; i < size; i++)
-                WriteByte(buf_idx + i, data[i]);
+                size = src.Length - src_offs;
+            if (size == 0)
+                return;
+            this.accessor.WriteArray(buf_idx, src, src_offs, size);
         }
 
         public void WriteU32(int buf_idx, int v)
@@ -436,80 +410,54 @@ namespace MCHI
 
         public void ReadBytes(ref byte[] dst, int dst_idx, int buf_idx, int size)
         {
-            for (int i = 0; i < size; i++)
-                dst[dst_idx + i] = buf[buf_idx + i];
+            this.accessor.ReadArray(buf_idx, dst, dst_idx, size);
+        }
+
+        public byte[] ReadBytes(int buf_idx, int size)
+        {
+            byte[] bytes = new byte[size];
+            ReadBytes(ref bytes, 0, buf_idx, size);
+            return bytes;
         }
 
         public int ReadU32(int buf_idx)
         {
-            return JHI.SwapBytes(BitConverter.ToInt32(buf.ToArray(), buf_idx));
+            return JHI.SwapBytes(this.accessor.ReadInt32(buf_idx));
+        }
+
+        public bool HasDisconnectCode()
+        {
+            return JHI.StrEq(ReadBytes(0x04, 0x04), 0x00, DISCONNECT_CODE);
+        }
+
+        public void Close()
+        {
+            this.accessor.Dispose();
+            this.file.Dispose();
         }
     }
 
     class HIO2Server
     {
-        public UdpClient server;
-        public Dictionary<IPEndPoint, HIO2ServerClient> clients = new Dictionary<IPEndPoint, HIO2ServerClient>();
-        public Thread thread;
-
-        private HIO2ServerClient GetClient(IPEndPoint remote)
-        {
-            HIO2ServerClient client;
-            if (clients.TryGetValue(remote, out client))
-            {
-                return client;
-            }
-            else
-            {
-                client = new HIO2ServerClient(this, remote);
-                clients.Add(remote, client);
-                return client;
-            }
-        }
-
-        public void SendCommand(int buf_idx, char cmd, byte value, HIO2ServerClient client)
-        {
-            byte[] data = new byte[4];
-            Array.Copy(BitConverter.GetBytes((short)buf_idx), data, 2);
-            data[2] = (byte)cmd;
-            data[3] = value;
-
-            IPEndPoint ep;
-            if (client != null)
-            {
-                ep = client.sender;
-            }
-            else
-            {
-                ep = new IPEndPoint(IPAddress.Parse("127.0.0.1"), 1235);
-            }
-
-            server.Send(data, data.Length, ep);
-        }
+        public HIO2ServerClient Client;
 
         public HIO2Server()
         {
-            server = new UdpClient(1234);
+            SpawnNewClient();
+        }
 
-            thread = new Thread(() =>
+        private void SpawnNewClient()
+        {
+            Client = new HIO2ServerClient(this, "Dolphin-EXIUSB-0");
+        }
+
+        public void Update()
+        {
+            if (Client.HasDisconnectCode())
             {
-                var remote = new IPEndPoint(IPAddress.Any, 0);
-                while (true)
-                {
-                    byte[] data = server.Receive(ref remote);
-
-                    if (data.Length == 1)
-                    {
-                        // handshake! remove existing client
-                        clients.Clear();
-                        continue;
-                    }
-
-                    HIO2ServerClient client = GetClient(remote);
-                    client.ReceiveMessage(data);
-                }
-            });
-            thread.Start();
+                Client.Close();
+                SpawnNewClient();
+            }
         }
     }
 }

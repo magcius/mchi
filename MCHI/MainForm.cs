@@ -23,16 +23,43 @@ namespace MCHI
             InitializeComponent();
 
             server = new HIO2Server();
+
             timer.Tick += OnTimerTick;
             timer.Interval = 16;
             timer.Start();
         }
 
+        private HIO2ServerClient currentClient = null;
+
+        private void SetCurrentClient(HIO2ServerClient client)
+        {
+            if (client == currentClient)
+                return;
+
+            currentClient = client;
+            jhiClient = currentClient != null ? new JHIClient(currentClient) : null;
+            jorServer = currentClient != null ? new JORServer(jhiClient) : null;
+            hexBox1.ByteProvider = currentClient != null ? new DynamicFileByteProvider(currentClient.file.CreateViewStream()) : null;
+            SyncTree();
+            SyncPanelControls(null);
+        }
+
         private void OnTimerTick(Object sender, EventArgs args)
         {
-            UpdateClientCountLabel();
-            if (jhiClient != null)
+            server.Update();
+            SetCurrentClient(server.Client);
+
+            hexBox1.Invalidate();
+            if (currentClient.IsConnected() && jhiClient != null)
+            {
                 jhiClient.Update();
+                StatusLabel.Text = String.Format("Connected - Incoming Buffer {0:X8}", jhiClient.GetUnprocessedDataSize());
+            }
+            else
+            {
+                StatusLabel.Text = "Not Connected";
+            }
+
             if (jorServer != null)
                 jorServer.Update();
         }
@@ -41,6 +68,7 @@ namespace MCHI
         {
             var treeNode = new TreeNode(jorNode.Name);
             treeNode.Tag = jorNode;
+            treeNode.ToolTipText = String.Format("{0:X8}", jorNode.NodePtr);
             foreach (var child in jorNode.Children)
                 treeNode.Nodes.Add(MakeTreeNode(child));
             return treeNode;
@@ -57,45 +85,6 @@ namespace MCHI
             }
         }
 
-        private void JHIWrite(HIO2ServerClient client, int offs, int size)
-        {
-            hexBox1.Invalidate();
-        }
-
-        private HIO2ServerClient currentClient = null;
-
-        private void SetCurrentClient(HIO2ServerClient client)
-        {
-            if (client == currentClient)
-                return;
-
-            if (currentClient != null)
-                currentClient.Write -= JHIWrite;
-            currentClient = client;
-            if (currentClient != null)
-                currentClient.Write += JHIWrite;
-
-            jhiClient = currentClient != null ? new JHIClient(currentClient) : null;
-            jorServer = currentClient != null ? new JORServer(jhiClient) : null;
-            hexBox1.ByteProvider = currentClient != null ? new DynamicByteProvider(currentClient.buf) : null;
-            SyncTree();
-            SyncPanelControls(null);
-        }
-
-        private void UpdateClientCountLabel()
-        {
-            ClientCountLabel.Text = String.Format("{0} connected clients...", server.clients.Count());
-
-            if (server.clients.Count > 0)
-            {
-                HIO2ServerClient client = server.clients.Values.First();
-                SetCurrentClient(client);
-            }
-            else
-            {
-                SetCurrentClient(null);
-            }
-        }
         private void SyncPanelControls(JORNode node)
         {
             GroupBox panel = ControlPanel;
@@ -122,6 +111,13 @@ namespace MCHI
         {
             if (jorServer != null)
                 jorServer.SendGetRootObjectRef();
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            JORNode jorNode = treeView1.SelectedNode?.Tag as JORNode;
+            if (jorServer != null && jorNode != null)
+                jorServer.SendGenObjectInfo(jorNode);
         }
     }
 }
