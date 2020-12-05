@@ -213,7 +213,6 @@ namespace MCHI
             {
                 var jorRange = jorControl as JORControlRangeInt;
                 var table = new TableLayoutPanel();
-                table.CellBorderStyle = TableLayoutPanelCellBorderStyle.OutsetDouble;
                 table.RowCount = 1;
                 table.ColumnCount = 2;
                 var label = new Label();
@@ -240,9 +239,11 @@ namespace MCHI
                 table.RowCount = 1;
                 table.ColumnCount = 2;
                 var label = new Label();
+                label.Width = jorControl.Location.Width / 2;
                 label.Text = jorRange.Name;
                 table.Controls.Add(label);
                 TrackBar trackBar = new TrackBar();
+                trackBar.Width = jorControl.Location.Width / 2;
                 trackBar.Tag = jorRange;
                 SyncRangeFloatFromJOR(trackBar, jorRange);
                 jorRange.Updated += () =>

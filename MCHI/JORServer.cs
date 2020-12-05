@@ -560,6 +560,9 @@ namespace MCHI
             this.client.RegisterTagProcessor(this);
         }
 
+        public delegate void NodeUpdatedDelegate(JORNode node);
+        public NodeUpdatedDelegate NodeUpdated;
+
         public string GetMagic()
         {
             return "ORef";
@@ -793,6 +796,8 @@ namespace MCHI
                 else if (command == JORMessageCommand.EndNode)
                 {
                     node.Status = JORNodeStatus.Valid;
+                    if (NodeUpdated != null)
+                        NodeUpdated(node);
                     node = nodeStack.Pop();
                 }
                 else if (command == JORMessageCommand.GenNode)
