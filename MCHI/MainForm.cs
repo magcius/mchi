@@ -88,6 +88,13 @@ namespace MCHI
         private void SyncPanelControls(JORNode node)
         {
             GroupBox panel = ControlPanel;
+
+            if (panel.Controls.Count > 0)
+            {
+                var jorPanel = panel.Controls[0] as JORPanel;
+                jorPanel.Destroy();
+            }
+
             panel.Controls.Clear();
             if (jorServer != null && node != null)
             {

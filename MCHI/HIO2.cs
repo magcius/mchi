@@ -69,8 +69,8 @@ namespace MCHI
         private int baseOffset;
         private int bufSize;
         private int bufDataSize;
-        private int pointR = 0x60;
-        private int pointW = 0x60;
+        private int pointR = 0x00;
+        private int pointW = 0x00;
 
         public JHIMccBuf(HIO2ServerClient hio2, int baseOffset, int bufSize)
         {
@@ -87,26 +87,20 @@ namespace MCHI
 
         private void SyncPointsFromHIO2()
         {
-            Debug.Assert(this.pointR >= DATA_OFFSET);
-            Debug.Assert(this.pointW >= DATA_OFFSET);
-
             // Update our R/W points
-            this.pointR = hio2.ReadU32(this.baseOffset + READ_OFFSET);
-            this.pointW = hio2.ReadU32(this.baseOffset + WRITE_OFFSET);
-
-            Debug.Assert(this.pointR >= DATA_OFFSET);
-            Debug.Assert(this.pointW >= DATA_OFFSET);
+            this.pointR = hio2.ReadU32(this.baseOffset + READ_OFFSET) - DATA_OFFSET;
+            this.pointW = hio2.ReadU32(this.baseOffset + WRITE_OFFSET) - DATA_OFFSET;
         }
 
         private void SyncReadPointToHIO2()
         {
-            hio2.WriteU32(this.baseOffset + READ_OFFSET, this.pointR);
+            hio2.WriteU32(this.baseOffset + READ_OFFSET, this.pointR + DATA_OFFSET);
             SyncPointsFromHIO2();
         }
 
         private void SyncWritePointToHIO2()
         {
-            hio2.WriteU32(this.baseOffset + WRITE_OFFSET, this.pointW);
+            hio2.WriteU32(this.baseOffset + WRITE_OFFSET, this.pointW + DATA_OFFSET);
             SyncPointsFromHIO2();
         }
 
@@ -120,11 +114,7 @@ namespace MCHI
                 return null;
             }
 
-            // Rebase from 0x60
-            int pointWZ = this.pointW - DATA_OFFSET;
-            int pointRZ = this.pointR - DATA_OFFSET;
-
-            int size = pointWZ - pointRZ;
+            int size = this.pointW - this.pointR;
             if (size < 0)
                 size += this.bufDataSize;
 
@@ -133,19 +123,19 @@ namespace MCHI
 
             // Check for wraparound -- where the new WP is less than our RP.
             // In this case, we need to split the read into two.
-            if (pointWZ < pointRZ)
+            if (this.pointW < this.pointR)
             {
                 // First, read from pointW until end of buffer.
-                int size1 = this.bufDataSize - pointRZ;
-                hio2.ReadBytes(ref data, data_offs, this.baseOffset + DATA_OFFSET + pointRZ, size1);
+                int size1 = this.bufDataSize - this.pointR;
+                hio2.ReadBytes(ref data, data_offs, this.baseOffset + DATA_OFFSET + this.pointR, size1);
                 data_offs += size1;
                 size -= size1;
 
                 // Reset pointR back to the start to prepare for the next read.
-                pointRZ = 0;
+                this.pointR = 0;
             }
 
-            hio2.ReadBytes(ref data, data_offs, this.baseOffset + DATA_OFFSET + pointRZ, size);
+            hio2.ReadBytes(ref data, data_offs, this.baseOffset + DATA_OFFSET + this.pointR, size);
 
             Debug.Assert(JHI.StrEq(data, 0, MAGIC_CODE));
 
@@ -183,48 +173,43 @@ namespace MCHI
 
             SyncPointsFromHIO2();
 
-            // Rebase from 0x60
-            int pointWZ = this.pointW - DATA_OFFSET;
-            int pointRZ = this.pointR - DATA_OFFSET;
-
-            // If necessary, wait for Dolphin to read data from the ring buffer before continuing.
-            while (((pointWZ + 0x20) % this.bufDataSize) == pointRZ)
-            {
-                Thread.Sleep(16);
-                SyncPointsFromHIO2();
-                pointWZ = this.pointW - DATA_OFFSET;
-                pointRZ = this.pointR - DATA_OFFSET;
-            }
-
             int dataOffs = 0;
             while (dataOffs < data.Length)
             {
                 // See how many bytes are available to write in the current "run" -- meaning, no wraparound.
-                int pointEndZ = pointWZ < pointRZ ? pointRZ : this.bufDataSize;
-                int availableToWrite = pointEndZ - pointWZ - 0x20;
+                int pointEnd = this.pointW < this.pointR ? this.pointR : this.bufDataSize;
+                int availableToWrite = pointEnd - this.pointW;
+
+                // If necessary, wait for Dolphin to read data from the ring buffer before continuing.
+                if (this.pointW < this.pointR && availableToWrite <= 0x20)
+                {
+                    Thread.Sleep(16);
+                    SyncPointsFromHIO2();
+                    continue;
+                }
 
                 int remainingBytes = data.Length - dataOffs;
 
-                // Remember to leave space for the header.
-                int bytesToWrite = Math.Min(availableToWrite, remainingBytes);
+                int bytesToWrite = Math.Min(availableToWrite - 0x06, remainingBytes);
 
-                int fullSize = WriteMessage(DATA_OFFSET + pointWZ, data, dataOffs, bytesToWrite);
+                int fullSize = WriteMessage(DATA_OFFSET + this.pointW, data, dataOffs, bytesToWrite);
                 dataOffs += bytesToWrite;
-                pointWZ += fullSize;
+                this.pointW += fullSize;
 
-                if (pointWZ == this.bufDataSize)
+                Debug.WriteLine("HIO SZ: {0:X4} WP: {1:X4} RP: {2:X4}", fullSize, this.pointW, this.pointR);
+
+                if (this.pointW == this.bufDataSize)
                 {
                     // Reset us back home.
-                    pointWZ = 0x00;
+                    this.pointW = 0x00;
                 }
-                else if (pointWZ > this.bufDataSize)
+                else if (this.pointW > this.bufDataSize)
                 {
                     // How did this happen?
                     throw new Exception("whoops");
                 }
             }
 
-            this.pointW = DATA_OFFSET + pointWZ;
             SyncWritePointToHIO2();
         }
     }
@@ -326,10 +311,7 @@ namespace MCHI
 
             while (offs < data.Length)
             {
-                if (!JHI.StrEq(data, offs + 0x00, JHIMccBuf.MAGIC_CODE))
-                {
-                    throw new Exception("whoops!");
-                }
+                Debug.Assert(JHI.StrEq(data, offs + 0x00, JHIMccBuf.MAGIC_CODE));
 
                 int chunkSize = JHI.SwapBytes(BitConverter.ToInt16(data, offs + 0x04));
                 offs += 0x06;

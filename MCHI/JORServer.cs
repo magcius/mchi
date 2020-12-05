@@ -540,7 +540,6 @@ namespace MCHI
         public void Reset()
         {
             this.TreeRoot = new JORNode();
-            this.TreeRoot.NodePtr = 0xFFFFFFFF;
             this.TreeRoot.Status = JORNodeStatus.Valid;
         }
 
@@ -589,6 +588,10 @@ namespace MCHI
 
         public void SendGenObjectInfo(JORNode node)
         {
+            // Can't request something without a proper pointer.
+            if (node.NodePtr == 0)
+                return;
+
             Debug.WriteLine("-> GenObjectInfo {0} 0x{1:X8}", node.Name, node.NodePtr);
             var stream = BeginSendEvent(JOREventType.GenObjectInfo);
             stream.Write(node.NodePtr);
@@ -626,7 +629,8 @@ namespace MCHI
 
             if (node == null)
             {
-                node = this.Root.GetByPtr(nodePtr);
+                if (nodePtr != 0)
+                    node = this.Root.GetByPtr(nodePtr);
                 if (node == null && create)
                     node = new JORNode();
             }
@@ -760,7 +764,7 @@ namespace MCHI
             return control;
         }
 
-        private void ProcessObjectInfo(MemoryInputStream stream, bool writeFirstNode = false)
+        private void ProcessObjectInfo(MemoryInputStream stream)
         {
             JORControlSelector currentSelector = null;
             Stack<JORNode> nodeStack = new Stack<JORNode>();
@@ -862,7 +866,7 @@ namespace MCHI
             var stream = new MemoryInputStream(tag.Data);
             JORMessageType messageType = (JORMessageType)stream.ReadS32();
 
-            Debug.WriteLine("<- ORef {1}  {0}", tag.Dump(), messageType);
+            // Debug.WriteLine("<- ORef {1}  {0}", tag.Dump(), messageType);
 
             if (messageType == JORMessageType.Reset)
             {
@@ -887,7 +891,7 @@ namespace MCHI
             else if (messageType == JORMessageType.GenObjectInfo)
             {
                 // Reply from GenObjectInfo request
-                ProcessObjectInfo(stream, true);
+                ProcessObjectInfo(stream);
             }
             else if (messageType == JORMessageType.StartNode)
             {

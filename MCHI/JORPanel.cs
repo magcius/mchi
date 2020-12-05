@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Drawing;
+using System.Collections.Generic;
 using System.Windows.Forms;
 
 namespace MCHI
@@ -18,6 +18,18 @@ namespace MCHI
             this.Server = server;
             this.Node = node;
             BuildPanel(Node);
+        }
+
+        private void DisposeRecurse(Control control)
+        {
+            foreach (Control child in control.Controls)
+                DisposeRecurse(child);
+            control.Dispose();
+        }
+
+        public void Destroy()
+        {
+            DisposeRecurse(this);
         }
 
         private void SyncLabelFromJOR(Label label, JORControlLabel jorLabel)
