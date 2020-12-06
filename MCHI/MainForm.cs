@@ -11,6 +11,7 @@ namespace MCHI
         private HIO2Server server;
         private JHIClient jhiClient;
         private JORServer jorServer;
+        private StringDictionary stringDictionary;
         private Timer timer = new Timer();
 
         public MainForm()
@@ -18,6 +19,7 @@ namespace MCHI
             InitializeComponent();
 
             server = new HIO2Server();
+            stringDictionary = new StringDictionary("../../../tp_dict.json"); // aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
             timer.Tick += OnTimerTick;
             timer.Interval = 16;
@@ -155,7 +157,8 @@ namespace MCHI
                     jorServer.SendGenObjectInfo(node);
                 }
 
-                var jorPanel = new JORPanel(jorServer, node);
+                var jorPanel = new JORPanel(jorServer, node, stringDictionary);
+
                 jorPanel.Dock = DockStyle.Fill;
                 panel.Controls.Add(jorPanel);
             }
@@ -183,6 +186,11 @@ namespace MCHI
             JORNode jorNode = treeView1.SelectedNode?.Tag as JORNode;
             if (jorServer != null && jorNode != null)
                 jorServer.SendGenObjectInfo(jorNode);
+        }
+
+        private void OnFormClosing(object sender, FormClosingEventArgs e)
+        {
+            this.stringDictionary.SaveDict();
         }
     }
 }

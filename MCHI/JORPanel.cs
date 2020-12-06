@@ -8,15 +8,17 @@ namespace MCHI
     {
         public JORServer Server;
         public JORNode Node;
+        public StringDictionary StringDictionary;
         private bool SuppressEvent = false;
 
         const float RANGE_FLOAT_STEPS = 100.0f;
 
-        public JORPanel(JORServer server, JORNode node)
+        public JORPanel(JORServer server, JORNode node, StringDictionary transDict)
         {
             this.AutoScroll = true;
             this.Server = server;
             this.Node = node;
+            this.StringDictionary = transDict;
             BuildPanel(Node);
         }
 
@@ -34,7 +36,7 @@ namespace MCHI
 
         private void SyncLabelFromJOR(Label label, JORControlLabel jorLabel)
         {
-            label.Text = jorLabel.Name;
+            label.Text = this.StringDictionary.Translate(jorLabel.Name);
         }
 
         private void SyncButtonFromJOR(Button button, JORControlButton jorButton)
@@ -176,7 +178,9 @@ namespace MCHI
             {
                 var jorLabel = jorControl as JORControlLabel;
                 Label label = new Label();
+
                 SyncLabelFromJOR(label, jorLabel);
+
                 return label;
             }
             else if (jorControl.Type == "BUTN")
