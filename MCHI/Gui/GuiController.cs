@@ -19,6 +19,8 @@ namespace MCHI.Gui
         private static Vector3 _clearColor = new Vector3(0.45f, 0.55f, 0.6f);
         public static JORNode CurrentEditNode;
 
+        public static StringDictionary translationDictionary = new StringDictionary("../../../tp_dict.json");
+        public static bool UseTranslation = true;
 
         public static void Init()
         {
@@ -61,7 +63,10 @@ namespace MCHI.Gui
 
         private static string GetText(String text, JORControl cnt)
         {
-            return text;
+            if (UseTranslation)
+                return translationDictionary.Translate(text, cnt);
+            else
+                return text;
         }
 
         private static void DrawTree(JORServer server, JORNode node)
@@ -192,6 +197,33 @@ namespace MCHI.Gui
             }
         }
 
+        private static void EnsureTranslation(JORControlSelectorItem jorSelectorItem)
+        {
+            translationDictionary.EnsureKey(jorSelectorItem.Name);
+        }
+
+        private static void EnsureTranslation(JORControl jorControl)
+        {
+            translationDictionary.EnsureKey(jorControl.Name);
+
+            if (jorControl is JORControlSelector)
+            {
+                var jorSelector = jorControl as JORControlSelector;
+                foreach (var jorSelectorItem in jorSelector.Items)
+                    EnsureTranslation(jorSelectorItem);
+            }
+        }
+
+        private static void EnsureTranslation(JORNode jorNode)
+        {
+            if (jorNode.Name != null)
+                translationDictionary.EnsureKey(jorNode.Name);
+            foreach (var jorControl in jorNode.Controls)
+                EnsureTranslation(jorControl);
+            foreach (var childJorNode in jorNode.Controls)
+                EnsureTranslation(childJorNode);
+        }
+
         static int largestBufferUntil0 = 1;
 
         public static void SubmitUI(JORManager manager)
@@ -221,12 +253,17 @@ namespace MCHI.Gui
             var jorServer = manager.jorServer;
             if (jorServer != null)
             {
+                // Sort of a hack to do this here, but go through all nodes and make sure that their controls
+                // have translation entries.
+                EnsureTranslation(jorServer.Root.TreeRoot);
+
                 if (ImGui.Button("Request JOR Root"))
                     manager.jorServer.SendGetRootObjectRef();
 
+                ImGui.Checkbox("Use Translation", ref UseTranslation);
+
                 ImGui.BeginChild("JorTreeContainer");
-                if (jorServer != null && jorServer.Root != null && jorServer.Root.TreeRoot != null)
-                    DrawTree(jorServer, jorServer.Root.TreeRoot);
+                DrawTree(jorServer, jorServer.Root.TreeRoot);
                 ImGui.EndChild();
                 ImGui.End();
 

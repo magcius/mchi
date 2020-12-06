@@ -62,7 +62,7 @@ namespace ImGuiNET
             IntPtr context = ImGui.CreateContext();
             ImGui.SetCurrentContext(context);
             var io = ImGui.GetIO();
-            ImFontPtr font = io.Fonts.AddFontFromFileTTF("NotoSansCJKjp-Medium.otf", 18.0f, null, io.Fonts.GetGlyphRangesJapanese());
+            ImFontPtr font = io.Fonts.AddFontFromFileTTF("../../../NotoSansCJKjp-Medium.otf", 18.0f, null, io.Fonts.GetGlyphRangesJapanese());
 
             CreateDeviceResources(gd, outputDescription);
             SetKeyMappings();

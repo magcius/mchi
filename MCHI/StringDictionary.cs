@@ -16,6 +16,11 @@ namespace MCHI
         {
             this.dictPath = dictPath;
             saveDebouncer = new Debouncer(200 /* ms */, (Object src, ElapsedEventArgs e) => SaveDict());
+            Reload();
+        }
+
+        public void Reload()
+        {
             if (File.Exists(dictPath))
             {
                 var json = File.ReadAllText(dictPath);
@@ -50,6 +55,7 @@ namespace MCHI
         }
 
         private Debouncer saveDebouncer;
+
         public string Translate(string jp)
         {
             if (lut.TryGetValue(jp, out string en))
@@ -58,7 +64,7 @@ namespace MCHI
             }
             else
             {
-                InsertUntranslated(jp);
+                EnsureKey(jp);
 
                 saveDebouncer.Bounce();
 
@@ -66,9 +72,10 @@ namespace MCHI
             }
         }
 
-        public void InsertUntranslated(string jp)
+        public void EnsureKey(string jp)
         {
-            lut.Add(jp, null);
+            if (!lut.ContainsKey(jp))
+                lut.Add(jp, null);
         }
     }
 }
