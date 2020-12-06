@@ -35,7 +35,8 @@ def passthrough(ctx):
         db = json.load(f)
 
     for k, v in db.items():
-        if not is_str_jp(k):
+        # nb: `v is None` makes sure we don't overwrite existing edits
+        if v is None and not is_str_jp(k):
             db[k] = k
 
     with click.open_file(ctx.obj['out_path'], 'w') as f:
