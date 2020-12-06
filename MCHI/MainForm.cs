@@ -87,7 +87,7 @@ namespace MCHI
         {
             if (treeNode.Tag != jorNode)
                 treeNode.Tag = jorNode;
-            treeNode.Text = jorNode.Name;
+            treeNode.Text = stringDictionary.Translate(jorNode.Name);
 
             var foundNodes = new List<TreeNode>();
             foreach (var childJorNode in jorNode.Children)

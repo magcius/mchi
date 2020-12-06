@@ -52,8 +52,7 @@ namespace MCHI
         private Debouncer saveDebouncer;
         public string Translate(string jp)
         {
-            string en;
-            if (lut.TryGetValue(jp, out en))
+            if (lut.TryGetValue(jp, out string en))
             {
                 return en ?? jp;
             }
@@ -69,7 +68,7 @@ namespace MCHI
 
         public void InsertUntranslated(string jp)
         {
-            lut.TryAdd(jp, null);
+            lut.Add(jp, null);
         }
     }
 }
