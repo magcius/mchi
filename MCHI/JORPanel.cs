@@ -8,7 +8,7 @@ namespace MCHI
     {
         public JORServer Server;
         public JORNode Node;
-        public StringDictionary StringDictionary;
+        public StringDictionary transDict;
         private bool SuppressEvent = false;
 
         const float RANGE_FLOAT_STEPS = 100.0f;
@@ -18,7 +18,7 @@ namespace MCHI
             this.AutoScroll = true;
             this.Server = server;
             this.Node = node;
-            this.StringDictionary = transDict;
+            this.transDict = transDict;
             BuildPanel(Node);
         }
 
@@ -36,7 +36,7 @@ namespace MCHI
 
         private void SyncLabelFromJOR(Label label, JORControlLabel jorLabel)
         {
-            label.Text = this.StringDictionary.Translate(jorLabel.Name);
+            label.Text = transDict.Translate(jorLabel.Name, jorLabel);
         }
 
         private void SyncButtonFromJOR(Button button, JORControlButton jorButton)
@@ -187,7 +187,7 @@ namespace MCHI
             {
                 var jorButton = jorControl as JORControlButton;
                 Button button = new Button();
-                button.Text = jorControl.Name;
+                button.Text = transDict.Translate(jorControl.Name, jorButton);
                 button.Tag = jorControl;
                 SyncButtonFromJOR(button, jorButton);
                 jorButton.Updated += () =>
@@ -203,7 +203,7 @@ namespace MCHI
                 var jorCheckBox = jorControl as JORControlCheckBox;
                 CheckBox checkBox = new CheckBox();
                 checkBox.Tag = jorCheckBox;
-                checkBox.Text = jorCheckBox.Name;
+                checkBox.Text = transDict.Translate(jorCheckBox.Name, jorCheckBox);
                 SyncCheckBoxFromJOR(checkBox, jorCheckBox);
                 jorCheckBox.Updated += () =>
                 {
@@ -221,7 +221,7 @@ namespace MCHI
                 table.ColumnCount = 2;
                 var label = new Label();
                 label.Width = jorControl.Location.Width / 2;
-                label.Text = jorRange.Name;
+                label.Text = jorRange.Name; // intentionally not translating here for now to avoid table explosion
                 table.Controls.Add(label);
                 TrackBar trackBar = new TrackBar();
                 trackBar.Width = jorControl.Location.Width / 2;
@@ -244,7 +244,7 @@ namespace MCHI
                 table.ColumnCount = 2;
                 var label = new Label();
                 label.Width = jorControl.Location.Width / 2;
-                label.Text = jorRange.Name;
+                label.Text = jorRange.Name; // intentionally not translating here for now to avoid table explosion
                 table.Controls.Add(label);
                 TrackBar trackBar = new TrackBar();
                 trackBar.Width = jorControl.Location.Width / 2;
@@ -265,9 +265,9 @@ namespace MCHI
                 var comboBox = new ComboBox();
                 comboBox.Tag = jorSelector;
                 comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-                comboBox.Text = jorSelector.Name;
+                comboBox.Text = transDict.Translate(jorSelector.Name, jorSelector);
                 foreach (var item in jorSelector.Items)
-                    comboBox.Items.Add(item.Name);
+                    comboBox.Items.Add(transDict.Translate(item.Name, jorSelector)); // use outer control as context
 
                 SyncComboBoxFromJOR(comboBox, jorSelector);
                 jorSelector.Updated += () =>
@@ -283,12 +283,12 @@ namespace MCHI
                 var jorSelector = jorControl as JORControlSelector;
                 var groupBox = new GroupBox();
                 groupBox.Tag = jorSelector;
-                groupBox.Text = jorSelector.Name;
+                groupBox.Text = transDict.Translate(jorSelector.Name, jorSelector);
                 foreach (var item in jorSelector.Items)
                 {
                     var radioButton = new RadioButton();
                     radioButton.CheckedChanged += OnRadioButtonCheckedChanged;
-                    radioButton.Text = item.Name;
+                    radioButton.Text = transDict.Translate(item.Name, jorSelector); // use outer control as context
                     radioButton.Tag = item;
                     groupBox.Controls.Add(radioButton);
                 }
@@ -301,7 +301,7 @@ namespace MCHI
 
                 return groupBox;
             }
-            else if (jorControl.Type == "EDBX")
+            else if (jorControl.Type == "EDBX") // *don't* translate these
             {
                 var jorEditBox = jorControl as JORControlEditBox;
                 var table = new TableLayoutPanel();
@@ -325,7 +325,7 @@ namespace MCHI
             else if (jorControl.Type == "GRBX")
             {
                 var g = new GroupBox();
-                g.Text = jorControl.Name;
+                g.Text = transDict.Translate(jorControl.Name, jorControl); // i guess groupboxes can have text? uh guess we'll translate
                 return g;
             }
             else

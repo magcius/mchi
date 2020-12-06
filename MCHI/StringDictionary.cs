@@ -39,6 +39,12 @@ namespace MCHI
             }
         }
 
+        public string Translate(string jp, JORControl context)
+        {
+            // might need context at some point if we want to deal with ex labels that have wide-ranging %d params
+            return Translate(jp);
+        }
+
         public string Translate(string jp)
         {
             string en;
