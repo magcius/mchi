@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using System.IO;
+using System.Diagnostics;
+using System.Timers;
 
 namespace MCHI
 {
@@ -13,10 +15,12 @@ namespace MCHI
         public StringDictionary(string dictPath)
         {
             this.dictPath = dictPath;
+            saveDebouncer = new Debouncer(200 /* ms */, (Object src, ElapsedEventArgs e) => SaveDict());
             if (File.Exists(dictPath))
             {
                 var json = File.ReadAllText(dictPath);
                 lut = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                SaveDict(); // reformat
             }
             else
             {
@@ -45,6 +49,7 @@ namespace MCHI
             return Translate(jp);
         }
 
+        private Debouncer saveDebouncer;
         public string Translate(string jp)
         {
             string en;
@@ -55,7 +60,9 @@ namespace MCHI
             else
             {
                 InsertUntranslated(jp);
-                SaveDict();
+
+                saveDebouncer.Bounce();
+
                 return jp;
             }
         }
@@ -64,5 +71,27 @@ namespace MCHI
         {
             lut.TryAdd(jp, null);
         }
+    }
+}
+
+class Debouncer
+{
+    private Timer timer;
+    private double timeout_ms;
+
+    public Debouncer(double timeout_ms, ElapsedEventHandler action)
+    {
+        this.timeout_ms = timeout_ms;
+        timer = new Timer(timeout_ms);
+        timer.AutoReset = false;
+        timer.Elapsed += action;
+    }
+
+    public void Bounce()
+    {
+        // reset timer
+        timer.Stop();
+        timer.Interval = timeout_ms;
+        timer.Start();
     }
 }
