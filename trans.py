@@ -74,7 +74,7 @@ def passthrough(ctx):
             db[k] = k
 
     with click.open_file(ctx.obj['out_path'], 'w') as f:
-        json.dump(db, f, indent=2)
+        json.dump(db, f, indent=2, ensure_ascii=False)
 
 @cli.command()
 @click.option('--api-key', envvar='DEEPL_API_KEY')
@@ -97,7 +97,7 @@ def deepl(ctx, api_key):
 
         # write every time in case we ^C. don't wanna lose progress, deepl is $$$
         with click.open_file(ctx.obj['out_path'], 'w') as f:
-            json.dump(db, f, indent=2)
+            json.dump(db, f, indent=2, ensure_ascii=False)
         time.sleep(0.01)
 
 
