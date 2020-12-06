@@ -3,7 +3,7 @@ using System.Threading;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
-using System.Windows.Forms;
+
 
 namespace MCHI
 {
@@ -477,6 +477,7 @@ namespace MCHI
         public uint flag1;
         public uint flag2;
         public JORNodeStatus Status = JORNodeStatus.Invalid;
+        public DateTime lastRequestTime;
 
         public List<JORControl> Controls = new List<JORControl>();
         public List<JORNode> Children = new List<JORNode>();
@@ -603,6 +604,7 @@ namespace MCHI
             stream.Write(node.NodePtr);
             SendEvent(stream);
             node.Status = JORNodeStatus.GenRequestSent;
+            node.lastRequestTime = DateTime.Now;
         }
 
         public void SendResultU32(uint retPtr, uint value = 1)
@@ -933,7 +935,7 @@ namespace MCHI
                 uint style = stream.ReadU32();
                 string msg = stream.ReadSJIS();
                 string title = stream.ReadSJIS();
-                MessageBox.Show(msg, title);
+                //MessageBox.Show(msg, title);
                 SendResultU32(retPtr);
             }
             else if (messageType == JORMessageType.ShellExecute)

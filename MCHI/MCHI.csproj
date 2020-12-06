@@ -3,12 +3,63 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
+    <UseWindowsForms>false</UseWindowsForms>
+    <StartupObject></StartupObject>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="MainForm.cs" />
+    <Compile Remove="MainForm.Designer.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Shaders\GLSL\imgui-frag.glsl" />
+    <None Remove="Shaders\GLSL\imgui-vertex.glsl" />
+    <None Remove="Shaders\HLSL\imgui-frag.hlsl" />
+    <None Remove="Shaders\HLSL\imgui-frag.hlsl.bytes" />
+    <None Remove="Shaders\HLSL\imgui-vertex.hlsl" />
+    <None Remove="Shaders\HLSL\imgui-vertex.hlsl.bytes" />
+    <None Remove="Shaders\Metal\imgui-frag.metal" />
+    <None Remove="Shaders\Metal\imgui-frag.metallib" />
+    <None Remove="Shaders\Metal\imgui-vertex.metal" />
+    <None Remove="Shaders\Metal\imgui-vertex.metallib" />
+    <None Remove="Shaders\SPIR-V\imgui-frag.glsl" />
+    <None Remove="Shaders\SPIR-V\imgui-frag.spv" />
+    <None Remove="Shaders\SPIR-V\imgui-vertex.glsl" />
+    <None Remove="Shaders\SPIR-V\imgui-vertex.spv" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Shaders\GLSL\imgui-frag.glsl" />
+    <EmbeddedResource Include="Shaders\GLSL\imgui-vertex.glsl" />
+    <EmbeddedResource Include="Shaders\HLSL\imgui-frag.hlsl" />
+    <EmbeddedResource Include="Shaders\HLSL\imgui-frag.hlsl.bytes" />
+    <EmbeddedResource Include="Shaders\HLSL\imgui-vertex.hlsl" />
+    <EmbeddedResource Include="Shaders\HLSL\imgui-vertex.hlsl.bytes" />
+    <EmbeddedResource Include="Shaders\Metal\imgui-frag.metal" />
+    <EmbeddedResource Include="Shaders\Metal\imgui-frag.metallib" />
+    <EmbeddedResource Include="Shaders\Metal\imgui-vertex.metal" />
+    <EmbeddedResource Include="Shaders\Metal\imgui-vertex.metallib" />
+    <EmbeddedResource Include="Shaders\SPIR-V\imgui-frag.glsl" />
+    <EmbeddedResource Include="Shaders\SPIR-V\imgui-frag.spv" />
+    <EmbeddedResource Include="Shaders\SPIR-V\imgui-vertex.glsl" />
+    <EmbeddedResource Include="Shaders\SPIR-V\imgui-vertex.spv" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="MainForm.cs" />
+    <None Include="MainForm.Designer.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Be.Windows.Forms.HexBox" Version="1.6.1" />
+    <PackageReference Include="Imgui.net" Version="1.78.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="5.0.0" />
+    <PackageReference Include="Veldrid.StartupUtilities" Version="4.8.0" />
   </ItemGroup>
 
 </Project>
