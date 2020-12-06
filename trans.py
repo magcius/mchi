@@ -90,7 +90,7 @@ def deepl(ctx, api_key):
 
     deepl = Deepl(api_key)
 
-    for k, v in  tqdm([item for item in db.items()
+    for k, v in tqdm([item for item in db.items()
                        if item[1] is None and is_str_jp(item[0])]):
         db[k] = deepl.trans(k, preserve_formatting=True).text
         tqdm.write(f'{k} -> {db[k]}')
@@ -100,6 +100,26 @@ def deepl(ctx, api_key):
             json.dump(db, f, indent=2, ensure_ascii=False)
         time.sleep(0.01)
 
+
+@cli.command()
+@click.pass_context
+def stats(ctx):
+    with click.open_file(ctx.obj['db_path'], 'r') as f:
+        db = json.load(f)
+
+    total = 0
+    translated = 0
+    jp = 0
+    for k, v in db.items():
+        total += 1
+        if v is not None:
+            translated += 1
+        if is_str_jp(k):
+            jp += 1
+
+    print(f'total: {total}')
+    print(f'translated: {translated} ({translated/total * 100:.1f}%)')
+    print(f'jp: {jp} ({jp/total * 100:.1f}%)')
 
 if __name__ == '__main__':
     cli(obj={})
