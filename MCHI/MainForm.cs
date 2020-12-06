@@ -190,6 +190,7 @@ namespace MCHI
 
         private void OnFormClosing(object sender, FormClosingEventArgs e)
         {
+            // make sure all strings were saved
             this.stringDictionary.SaveDict();
         }
     }

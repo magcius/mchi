@@ -13,10 +13,12 @@ namespace MCHI
         public StringDictionary(string dictPath)
         {
             this.dictPath = dictPath;
-            if (File.Exists(dictPath)) {
+            if (File.Exists(dictPath))
+            {
                 var json = File.ReadAllText(dictPath);
                 lut = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-            } else
+            }
+            else
             {
                 lut = new Dictionary<string, string>();
                 SaveDict();
@@ -25,8 +27,16 @@ namespace MCHI
 
         public void SaveDict()
         {
-            FileStream fs = File.Open(dictPath, FileMode.OpenOrCreate);
-            JsonSerializer.Serialize(new Utf8JsonWriter(fs), lut);
+            using (var fs = File.Open(dictPath, FileMode.OpenOrCreate))
+            {
+                JsonSerializer.Serialize(
+                    new Utf8JsonWriter(fs, new JsonWriterOptions
+                    {
+                        Indented = true,
+                        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                    }),
+                    lut);
+            }
         }
 
         public string Translate(string jp)
@@ -39,6 +49,7 @@ namespace MCHI
             else
             {
                 InsertUntranslated(jp);
+                SaveDict();
                 return jp;
             }
         }
