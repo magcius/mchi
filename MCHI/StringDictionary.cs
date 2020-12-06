@@ -50,7 +50,7 @@ namespace MCHI
             string en;
             if (lut.TryGetValue(jp, out en))
             {
-                return en;
+                return en ?? jp;
             }
             else
             {
@@ -62,7 +62,7 @@ namespace MCHI
 
         public void InsertUntranslated(string jp)
         {
-            lut.Add(jp, null);
+            lut.TryAdd(jp, null);
         }
     }
 }
