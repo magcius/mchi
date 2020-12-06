@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 
+using ImGuiNET;
 namespace MCHI
 {
     static class Program
@@ -11,14 +11,32 @@ namespace MCHI
         /// <summary>
         ///  The main entry point for the application.
         /// </summary>
-        [STAThread]
+
+
+
+        private static int fslU = 0; 
+        
+
         static void Main()
         {
             System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
-            Application.SetHighDpiMode(HighDpiMode.SystemAware);
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+            JORManager.init();
+            guStart();
+        }
+
+        static void guStart()
+        {
+            Gui.GuiController.init(); // Initializes GUI controller
+            while (true)
+            {
+                Gui.GuiController.update(); // Call update routine
+                fslU++;
+                if (fslU > 8) // Updates every 8 rames
+                {
+                    JORManager.processUpdateTasks(); // Call update
+                    fslU = 0; // Reset update counter. 
+                }
+            }            
         }
     }
 }
