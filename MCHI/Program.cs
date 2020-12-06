@@ -12,31 +12,18 @@ namespace MCHI
         ///  The main entry point for the application.
         /// </summary>
 
-
-
-        private static int fslU = 0; 
-        
-
-        static void Main()
+        public static void Main()
         {
             System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
-            JORManager.init();
-            guStart();
-        }
 
-        static void guStart()
-        {
-            Gui.GuiController.init(); // Initializes GUI controller
+            Gui.GuiController.Init();
+            var manager = new JORManager();
+
             while (true)
             {
-                Gui.GuiController.update(); // Call update routine
-                fslU++;
-                if (fslU > 8) // Updates every 8 rames
-                {
-                    JORManager.processUpdateTasks(); // Call update
-                    fslU = 0; // Reset update counter. 
-                }
-            }            
+                manager.Update();
+                Gui.GuiController.Update(manager);
+            }
         }
     }
 }

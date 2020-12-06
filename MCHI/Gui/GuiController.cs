@@ -1,14 +1,10 @@
 ﻿using System;
 using System.Text;
-using System.Collections.Generic;
-
-using System.IO;
 using System.Numerics;
 using Veldrid;
 using Veldrid.Sdl2;
 using Veldrid.StartupUtilities;
 using ImGuiNET;
-using static ImGuiNET.ImGuiNative;
 
 namespace MCHI.Gui
 {
@@ -21,10 +17,10 @@ namespace MCHI.Gui
 
         private static ImGuiController _controller;
         private static Vector3 _clearColor = new Vector3(0.45f, 0.55f, 0.6f);
-        public static JORNode currentEditNode;
+        public static JORNode CurrentEditNode;
 
 
-        public static void init()
+        public static void Init()
         {
             VeldridStartup.CreateWindowAndGraphicsDevice(
             new WindowCreateInfo(50, 50, 1024, 768, WindowState.Normal, "MCHI"),
@@ -40,13 +36,13 @@ namespace MCHI.Gui
             _controller = new ImGuiController(_gd, _gd.MainSwapchain.Framebuffer.OutputDescription, _window.Width, _window.Height);
         }
 
-        public static void update()
+        public static void Update(JORManager manager)
         {
             if (!_window.Exists) { Environment.Exit(0); return; }
             InputSnapshot snapshot = _window.PumpEvents();
             if (!_window.Exists) { return; }
-            _controller.Update(1f / 60f, snapshot); // Feed the input events to our ImGui controller, which passes them through to ImGui
-            SubmitUI();
+            _controller.Update(1f / 60f, snapshot);
+            SubmitUI(manager);
             _cl.Begin();
             _cl.SetFramebuffer(_gd.MainSwapchain.Framebuffer);
             _cl.ClearColorTarget(0, new RgbaFloat(_clearColor.X, _clearColor.Y, _clearColor.Z, 1f));
@@ -63,194 +59,189 @@ namespace MCHI.Gui
             ImGui.PopStyleColor();
         }
 
-
-        private static string getText(JORControl cnt) // FOR LOCALIZATION OVERRIDE
+        private static string GetText(String text, JORControl cnt)
         {
-
-            return cnt.Name;
+            return text;
         }
 
-        private static string getText(JORNode cnt) // FOR LOCALIZATION OVERRIDE
+        private static void DrawTree(JORServer server, JORNode node)
         {
-            return cnt.Name;
-        }
-
-
-        private static void DrawTree(JORNode node)
-        {
-            if (node == null) // does the node even exist?
+            if (node == null)
                 return;
-            if (node.Name == null) // Does the node not have a name?
+            if (node.Name == null)
                 return;
-            if (node.Status == JORNodeStatus.Invalid) // Is the node invalid?
+            if (node.Status == JORNodeStatus.Invalid)
                 return;
-            if (node.Status == JORNodeStatus.GenRequestSent) // Is the node waiting for a generator request?
+            if (node.Status == JORNodeStatus.GenRequestSent)
             {
-                if (node.lastRequestTime == null || (DateTime.Now - node.lastRequestTime).Seconds > 2) // If it is not set, or has been two seconds -- rerequest. 
-                    JORManager.jorServer.SendGenObjectInfo(node);  // rerequest the node
-                return; // return 
+                if (node.LastRequestTime == null || (DateTime.Now - node.LastRequestTime).Seconds > 2)
+                    server.SendGenObjectInfo(node);
+                return;
             }
 
-            if (node.Children != null && node.Children.Count != 0) // Check if there's nothing to draw in this node
+            if (node.Children != null && node.Children.Count != 0)
             {
-                if (ImGui.TreeNode(getText(node) + "##" + node.NodePtr)) // Draw the node name, use the pointer as an ID Index to prevent duplicates in IMGUI Memory
+                var nodeLabel = GetText(node.Name, null);
+                if (ImGui.TreeNode(nodeLabel + "##" + node.NodePtr))
                 {
-                    if (ImGui.Selectable("$ - " + getText(node), currentEditNode == node)) // Create a button for the root, since tree's don't have a "clicked" event. 
-                        currentEditNode = node; // if the root object has been clicked, assign the node as the currently edited node.
-                    foreach (JORNode cnode in node.Children) // Draw the children 
-                        DrawTree(cnode); // Draw each child as the tree recursivelyt                 
+                    if (node.Controls.Count > 0 && ImGui.Selectable("$ - " + nodeLabel, CurrentEditNode == node))
+                        CurrentEditNode = node;
+                    foreach (JORNode jorNode in node.Children)
+                        DrawTree(server, jorNode);
 
-                    DrawStyledTextInstance("____________________________________", 0xFF0000FF);
-                    ImGui.TreePop(); // Push tree level left once we're done drawing that sublevel               
+                    ImGui.TreePop();
                 }
-
             }
-            else if (ImGui.Selectable(node.Name + "##" + node.NodePtr, currentEditNode == node)) // If it doesn't have any children, just create a selectable button for it. 
-                currentEditNode = node; // When clicked, assign it as the currently edited node. 
+            else if (ImGui.Selectable(node.Name + "##" + node.NodePtr, CurrentEditNode == node))
+                CurrentEditNode = node;
         }
 
-
-      
-
-        public static void DrawControlContainer(JORControl control)
+        public static void DrawControlContainer(JORServer server, JORControl control)
         {
-            // ImGui.PushFont(fnt);
             if (control.Node.Status == JORNodeStatus.Invalid)
                 return;
             switch (control.Type)
             {
                 case "LABL": // Label
                     {
-                        var jorLabel = control as JORControlLabel; // Cast to appropriate type
-                        ImGui.Text(getText(control)); // labels are simple, just draw the text
+                        var jorLabel = control as JORControlLabel;
+                        ImGui.Text(GetText(jorLabel.Name, jorLabel));
                         break;
                     }
                 case "BUTN": // Button
                     {
-                        var jorButton = control as JORControlButton; // Cast to appropriate type
-                        if (ImGui.Button(getText(jorButton) + "##" + control.ID))
-                            jorButton.Click(JORManager.jorServer); // send click
+                        var jorButton = control as JORControlButton;
+                        if (ImGui.Button(GetText(jorButton.Name, jorButton) + "##" + control.ID))
+                            jorButton.Click(server);
                         break;
                     }
                 case "CHBX": // Checkbox
                     {
-                        var jorCheckbox = control as JORControlCheckBox; // Cast to appropriate type
-                        var val = jorCheckbox.Value; // Store the old value (if we update it on the object, the code in JORServer will never send it to the game)
-                        ImGui.Checkbox(jorCheckbox.Name + "##" + control.ID, ref val); // Draw control, reference to val, feed into SetValue (has changed check)
-                        jorCheckbox.SetValue(JORManager.jorServer, val);
+                        var jorCheckbox = control as JORControlCheckBox;
+                        var val = jorCheckbox.Value;
+                        ImGui.Checkbox(jorCheckbox.Name + "##" + control.ID, ref val);
+                        jorCheckbox.SetValue(server, val);
                         break;
                     }
                 case "RNGi": // Integer Range
                     {
-                        var jorRange = control as JORControlRangeInt; // Cast to appropriate type
-                        var val = jorRange.Value; // Store the old value (if we update it on the object, the code in JORServer will never send it to the game)
-                        ImGui.SliderInt(getText(jorRange)+ "##" + control.ID, ref val, jorRange.RangeMin, jorRange.RangeMax); // Draw control, reference to val, feed into SetValue (has changed check)
-                        jorRange.SetValue(JORManager.jorServer, val);
+                        var jorRange = control as JORControlRangeInt;
+                        var val = jorRange.Value;
+                        ImGui.SliderInt(GetText(jorRange.Name, jorRange) + "##" + control.ID, ref val, jorRange.RangeMin, jorRange.RangeMax);
+                        jorRange.SetValue(server, val);
                         break;
                     }
 
                 case "RNGf": // Float Range
                     {
-                        var jorRange = control as JORControlRangeFloat; // Cast to appropriate type
-                        var val = jorRange.Value; // Store the old value (if we update it on the object, the code in JORServer will never send it to the game)
-                        ImGui.SliderFloat(getText(jorRange) + "##" + control.ID, ref val, jorRange.RangeMin, jorRange.RangeMax); // Draw control, reference to val, feed into SetValue (has changed check)
-                        jorRange.SetValue(JORManager.jorServer, val);
+                        var jorRange = control as JORControlRangeFloat;
+                        var val = jorRange.Value;
+                        ImGui.SliderFloat(GetText(jorRange.Name, jorRange) + "##" + control.ID, ref val, jorRange.RangeMin, jorRange.RangeMax);
+                        jorRange.SetValue(server, val);
                         break;
                     }
-                case "CMBX":
+                case "CMBX": // ComboBox
                     {
-                        var jorSelector = control as JORControlSelector;   // Cast to appropriate type
-                        var names = new string[jorSelector.Items.Count]; // Storage for control names
-                        for (int i = 0; i < jorSelector.Items.Count; i++) // Loop through each and 
-                            names[i] = jorSelector.Items[i].Name; // Put their names into the string array.
-                        var val = (int)jorSelector.SelectedIndex; // Store the old value (if we update it on the object, the code in JORServer will never send it to the game)
-                        ImGui.Combo(getText(jorSelector) + "##" + control.ID, ref val, names, names.Length); // Draw control, reference to val, feed into SetValue (has changed check)
-                        jorSelector.SetSelectedIndex(JORManager.jorServer, (uint)val);
+                        var jorSelector = control as JORControlSelector;
+
+                        var names = new string[jorSelector.Items.Count];
+                        for (int i = 0; i < jorSelector.Items.Count; i++)
+                            names[i] = jorSelector.Items[i].Name;
+
+                        var val = (int)jorSelector.SelectedIndex;
+                        ImGui.Combo(GetText(jorSelector.Name, jorSelector) + "##" + control.ID, ref val, names, names.Length);
+                        jorSelector.SetSelectedIndex(server, (uint)val);
 
                         break;
                     }
-                case "RBTN":
+                case "RBTN": // Radio Button
                     {
-                        var jorSelector = control as JORControlSelector;  // Cast to appropriate type
-                        var names = new string[jorSelector.Items.Count]; // Storage for control names
-                        for (int i = 0; i < jorSelector.Items.Count; i++)// Loop through each and 
-                            names[i] = jorSelector.Items[i].Name;  // Put their names into the string array.
-                        var val = (int)jorSelector.SelectedIndex; // Store the old value (if we update it on the object, the code in JORServer will never send it to the game)
-                        ImGui.Combo(getText(jorSelector) + "##" + control.ID, ref val, names, names.Length); // Draw control, reference to val, feed into SetValue (has changed check)
-                        jorSelector.SetSelectedIndex(JORManager.jorServer, (uint)val);
+                        var jorSelector = control as JORControlSelector;
+                        var names = new string[jorSelector.Items.Count];
+                        for (int i = 0; i < jorSelector.Items.Count; i++)
+                            names[i] = jorSelector.Items[i].Name;
+
+                        var val = (int)jorSelector.SelectedIndex;
+                        ImGui.Combo(GetText(jorSelector.Name, jorSelector) + "##" + control.ID, ref val, names, names.Length);
+                        jorSelector.SetSelectedIndex(server, (uint)val);
                         break;
                     }
-                case "EDBX":
+                case "EDBX": // EditBox
                     {
                         /// TODO!!!
                         /// If someone types in the textbox, it might overflow the buffer. I don't know yet. I haven't found a text box to type in.
                         /// Figure out a way to introduce a typable text buffer. 
+
                         var jorEdit = control as JORControlEditBox;
-                        var val = jorEdit.Text; // Store the old value (if we update it on the object, the code in JORServer will never send it to the game)
+                        var val = jorEdit.Text;
                         var buff = Encoding.UTF8.GetBytes(val);
-                        ImGui.InputText(getText(jorEdit) + "##" + control.ID, buff, (uint)buff.Length); // Draw control, reference to val, feed into SetValue (has changed check)
+                        ImGui.InputText(GetText(jorEdit.Name, jorEdit) + "##" + control.ID, buff, (uint)buff.Length);
                         var newBuff = Encoding.UTF8.GetString(buff);
-                        jorEdit.SetValue(JORManager.jorServer, newBuff);
+                        jorEdit.SetValue(server, newBuff);
                         break;
                     }
-                case "GBRX": // Should be GRBX, but imgui doesn't have a good control for this.
+                case "GBRX": // GroupBox
                     {
+                        // Group boxes can have a text label, but they're never used in Twilight Princess.
+                        ImGui.Separator();
                         break;
                     }
                 default:
                     DrawStyledTextInstance($"Unimplemented control '{control.Type}'", 0xFF0000FF);
                     break;
             }
-
         }
-        static bool ye = true;
+
         static int largestBufferUntil0 = 1;
-        public static void SubmitUI()
+
+        public static void SubmitUI(JORManager manager)
         {
-            //ImGui.ShowDemoWindow();
+            ImGui.Begin("MAIN_WINDOW", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoTitleBar);
 
-            ImGui.Begin("MAIN_WINDOW", ref ye, ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoTitleBar); // draw main window
-            ImGui.SetWindowPos(new Vector2(0, 0), ImGuiCond.Once); // set winddow pos
-            ImGui.SetWindowSize(new Vector2(350, 768)); // Set its size 
+            ImGui.SetWindowPos(new Vector2(0, 0), ImGuiCond.Once);
+            ImGui.SetWindowSize(new Vector2(350, 768));
 
-            var col = 0xFF0000FF; // init status text color
-            var Text = "Not Connected"; // init status text text
-            //if (Program.currentClient != null)
-            //Console.WriteLine(Program.currentClient.IsConnected());
-            if (JORManager.currentClient != null && JORManager.currentClient.IsConnected()) // check if the client exists and is connected
+            var statusTextColor = 0xFF0000FF;
+            var statusText = "Not Connected";
+
+            if (manager.currentClient != null && manager.currentClient.IsConnected())
             {
-                var datsize = JORManager.jhiClient.GetUnprocessedDataSize() + 1; // do +1 so we don't divide by zero.
-                col = 0xFF00FF00; // Green 
-                Text = $"Connected, buffer size {datsize - 1:X8}"; // New text
-                if (datsize == 1) // Empty buffer
-                    largestBufferUntil0 = 1; // Clear progress bar status
-                else if (datsize > largestBufferUntil0) // Set progress bar to newer buffer size
-                    largestBufferUntil0 = datsize; // New size
-                ImGui.ProgressBar((largestBufferUntil0 - (float)datsize) / (float)largestBufferUntil0); // draw progress bar
+                var datsize = manager.jhiClient.GetUnprocessedDataSize() + 1;
+                statusTextColor = 0xFF00FF00;
+                statusText = $"Connected, buffer size {datsize - 1:X8}";
+                if (datsize == 1)
+                    largestBufferUntil0 = 1;
+                else if (datsize > largestBufferUntil0)
+                    largestBufferUntil0 = datsize;
+                ImGui.ProgressBar((largestBufferUntil0 - (float)datsize) / (float)largestBufferUntil0);
             }
 
-            if (ImGui.Button("Sync root")) // Sync root button
-                JORManager.jorServer.SendGetRootObjectRef();  // Tell server to refresh
+            DrawStyledTextInstance(statusText, statusTextColor);
 
-            DrawStyledTextInstance(Text, col); // Draw status text
-
-            ImGui.BeginChild("JorTreeContainer"); // Creates a child panel to put the tree in. Prevents the main window from having to scroll, leaving the bar and the "sync root" always visible.
-            if (JORManager.jorServer != null && JORManager.jorServer.Root != null && JORManager.jorServer.Root.TreeRoot != null)
-                DrawTree(JORManager.jorServer.Root.TreeRoot); // Draw the root tree
-            ImGui.EndChild();
-            ImGui.End();
-
-            /// CONTROL WINDOW
-            ImGui.Begin("CONTROL_WINDOW", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoTitleBar); // Init window
-            ImGui.SetWindowPos(new Vector2(351, 0), ImGuiCond.Once); // Init pos
-            ImGui.SetWindowSize(new Vector2(673, 768), ImGuiCond.Once); // Innit size
-
-            if (currentEditNode != null && currentEditNode.Name != null && currentEditNode.Status == JORNodeStatus.Valid) // Is node valid?
+            var jorServer = manager.jorServer;
+            if (jorServer != null)
             {
-                foreach (JORControl control in currentEditNode.Controls) // Draw every control.
-                    DrawControlContainer(control);
+                if (ImGui.Button("Request JOR Root"))
+                    manager.jorServer.SendGetRootObjectRef();
+
+                ImGui.BeginChild("JorTreeContainer");
+                if (jorServer != null && jorServer.Root != null && jorServer.Root.TreeRoot != null)
+                    DrawTree(jorServer, jorServer.Root.TreeRoot);
+                ImGui.EndChild();
+                ImGui.End();
+
+                ImGui.Begin("CONTROL_WINDOW", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoTitleBar); // Init window
+                ImGui.SetWindowPos(new Vector2(351, 0), ImGuiCond.Once);
+                ImGui.SetWindowSize(new Vector2(673, 768), ImGuiCond.Once);
+
+                if (CurrentEditNode != null && CurrentEditNode.Status == JORNodeStatus.Valid)
+                {
+                    foreach (JORControl control in CurrentEditNode.Controls)
+                        DrawControlContainer(jorServer, control);
+                }
+
+                ImGui.End();
             }
-            ImGui.End(); // End frame.
         }
     }
 }

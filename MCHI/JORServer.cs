@@ -195,13 +195,8 @@ namespace MCHI
         public JORControlLocation Location;
         public JORNode Node;
 
-        public delegate void UpdatedDelegate();
-        public UpdatedDelegate Updated;
-
         protected void AfterUpdate()
         {
-            if (Updated != null)
-                Updated();
         }
 
         public virtual void Update(uint updateMode, MemoryInputStream stream)
@@ -477,7 +472,7 @@ namespace MCHI
         public uint flag1;
         public uint flag2;
         public JORNodeStatus Status = JORNodeStatus.Invalid;
-        public DateTime lastRequestTime;
+        public DateTime LastRequestTime;
 
         public List<JORControl> Controls = new List<JORControl>();
         public List<JORNode> Children = new List<JORNode>();
@@ -564,9 +559,6 @@ namespace MCHI
             this.client.RegisterTagProcessor(this);
         }
 
-        public delegate void NodeUpdatedDelegate(JORNode node);
-        public NodeUpdatedDelegate NodeUpdated;
-
         public string GetMagic()
         {
             return "ORef";
@@ -604,7 +596,7 @@ namespace MCHI
             stream.Write(node.NodePtr);
             SendEvent(stream);
             node.Status = JORNodeStatus.GenRequestSent;
-            node.lastRequestTime = DateTime.Now;
+            node.LastRequestTime = DateTime.Now;
         }
 
         public void SendResultU32(uint retPtr, uint value = 1)
@@ -801,8 +793,6 @@ namespace MCHI
                 else if (command == JORMessageCommand.EndNode)
                 {
                     node.Status = JORNodeStatus.Valid;
-                    if (NodeUpdated != null)
-                        NodeUpdated(node);
                     node = nodeStack.Pop();
                 }
                 else if (command == JORMessageCommand.GenNode)

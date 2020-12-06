@@ -4,20 +4,20 @@ using System.Text;
 
 namespace MCHI
 {
-    static class JORManager
+    class JORManager
     {
+        public HIO2Server server;
+        public JHIClient jhiClient;
+        public JORServer jorServer;
 
-        public static HIO2Server server;
-        public static JHIClient jhiClient;
-        public static JORServer jorServer;
-        public static HIO2ServerClient currentClient = null;
+        public HIO2ServerClient currentClient = null;
 
-
-        public static void init()
+        public JORManager()
         {
             server = new HIO2Server();
         }
-        private static void SetCurrentClient(HIO2ServerClient client)
+
+        private void SetCurrentClient(HIO2ServerClient client)
         {
             if (client == currentClient)
                 return;
@@ -25,19 +25,16 @@ namespace MCHI
             currentClient = client;
             jhiClient = currentClient != null ? new JHIClient(currentClient) : null;
             jorServer = currentClient != null ? new JORServer(jhiClient) : null;
-            Console.WriteLine("Updated client");
         }
 
-        public static void processUpdateTasks()
+        public void Update()
         {
             server.Update();
             SetCurrentClient(server.Client);
             if (jhiClient != null && currentClient.IsConnected())
                 jhiClient.Update();
             if (jorServer != null)
-            {
                 jorServer.Update();
-            }
         }
     }
 }
