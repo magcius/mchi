@@ -275,7 +275,7 @@ namespace MCHI
             if ((updateMode & 0x02) != 0)
             {
                 Mask = stream.ReadU16();
-                Value = stream.ReadU16() != 0x00;
+                Value = (stream.ReadU16() & Mask) != 0;
             }
 
             AfterUpdate();
@@ -395,13 +395,13 @@ namespace MCHI
     class JORControlSelector : JORControl
     {
         public List<JORControlSelectorItem> Items = new List<JORControlSelectorItem>();
-        public uint SelectedIndex;
+        public uint CurrentValue;
 
         private void SendPropertyEvent(JORServer server)
         {
             var stream = BeginSendPropertyEvent(server);
             stream.Write(4);
-            stream.Write(SelectedIndex);
+            stream.Write(CurrentValue);
             server.SendEvent(stream);
         }
 
@@ -435,19 +435,33 @@ namespace MCHI
 
             if ((updateMode & 0x02) != 0)
             {
-                SelectedIndex = stream.ReadU32();
+                CurrentValue = stream.ReadU32();
             }
 
             AfterUpdate();
         }
 
-        public void SetSelectedIndex(JORServer server, uint newSelectedIndex)
+        private void SetCurrentValue(JORServer server, uint newCurrentValue)
         {
-            if (newSelectedIndex == SelectedIndex)
+            if (newCurrentValue == CurrentValue)
                 return;
 
-            SelectedIndex = newSelectedIndex;
+            CurrentValue = newCurrentValue;
             SendPropertyEvent(server);
+        }
+
+        public void SetSelectedIndex(JORServer server, uint newSelectedIndex)
+        {
+            SetCurrentValue(server, Items[(int)newSelectedIndex].Value);
+        }
+
+        public int GetSelectedIndex()
+        {
+            for (var i = 0; i < Items.Count; i++)
+                if (Items[i].Value == CurrentValue)
+                    return i;
+            // default
+            return 0;
         }
     }
 
@@ -769,7 +783,7 @@ namespace MCHI
             {
                 var cb = control as JORControlCheckBox;
                 cb.Mask = valueU >> 16;
-                cb.Value = (valueU & 0xFF) != 0;
+                cb.Value = (valueU & cb.Mask) != 0;
             }
             else if (control is JORControlRangeInt)
             {

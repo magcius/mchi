@@ -85,20 +85,43 @@ namespace MCHI.Gui
             }
 
             var nodeLabel = GetText(node.Name, null);
-            if (node.Children != null && node.Children.Count != 0)
-            {
-                if (ImGui.TreeNode(nodeLabel + "##" + node.NodePtr))
-                {
-                    if (node.Controls.Count > 0 && ImGui.Selectable("$ - " + nodeLabel, CurrentEditNode == node))
-                        CurrentEditNode = node;
-                    foreach (JORNode jorNode in node.Children)
-                        DrawTree(server, jorNode);
+            var highlightColor = GetHighlightColor(node);
 
-                    ImGui.TreePop();
+            int styleColorPushCount = 0;
+
+            var treeNodeFlags = ImGuiTreeNodeFlags.OpenOnDoubleClick | ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanFullWidth;
+            if (node == CurrentEditNode)
+                treeNodeFlags |= ImGuiTreeNodeFlags.Selected;
+            if (node.Children.Count == 0)
+            {
+                treeNodeFlags |= ImGuiTreeNodeFlags.Leaf;
+                if (node.Controls.Count == 0)
+                {
+                    unsafe
+                    {
+                        var vector = ImGui.GetStyleColorVec4(ImGuiCol.TextDisabled);
+                        ImGui.PushStyleColor(ImGuiCol.Text, *vector);
+                    }
+                    styleColorPushCount++;
                 }
             }
-            else if (ImGui.Selectable(nodeLabel + "##" + node.NodePtr, CurrentEditNode == node))
+            if (highlightColor.HasValue)
+            {
+                treeNodeFlags |= ImGuiTreeNodeFlags.Framed;
+                ImGui.PushStyleColor(ImGuiCol.Header, highlightColor.Value);
+                styleColorPushCount++;
+            }
+            bool treeNodeOpen = ImGui.TreeNodeEx(nodeLabel + "##" + node.NodePtr, treeNodeFlags);
+            ImGui.PopStyleColor(styleColorPushCount);
+            if (ImGui.IsItemClicked())
                 CurrentEditNode = node;
+            if (treeNodeOpen)
+            {
+                foreach (JORNode jorNode in node.Children)
+                    DrawTree(server, jorNode);
+
+                ImGui.TreePop();
+            }
         }
 
         public static void DrawControlContainer(JORServer server, JORControl control)
@@ -113,6 +136,10 @@ namespace MCHI.Gui
                 ImGui.SetCursorPosY(control.Location.Y * scale);
             }
             ImGui.SetNextItemWidth(control.Location.Width);
+
+            var highlightColor = GetHighlightColor(control);
+            if (highlightColor.HasValue)
+                ImGui.PushStyleColor(ImGuiCol.FrameBg, highlightColor.Value);
 
             switch (control.Type)
             {
@@ -141,8 +168,8 @@ namespace MCHI.Gui
                     {
                         var jorRange = control as JORControlRangeInt;
                         var val = jorRange.Value;
-                        ImGui.SliderInt(GetText(jorRange.Name, jorRange) + "##" + control.ID, ref val, jorRange.RangeMin, jorRange.RangeMax);
-                        jorRange.SetValue(server, val);
+                        if (ImGui.SliderInt(GetText(jorRange.Name, jorRange) + "##" + control.ID, ref val, jorRange.RangeMin, jorRange.RangeMax))
+                            jorRange.SetValue(server, val);
                         break;
                     }
 
@@ -150,8 +177,8 @@ namespace MCHI.Gui
                     {
                         var jorRange = control as JORControlRangeFloat;
                         var val = jorRange.Value;
-                        ImGui.SliderFloat(GetText(jorRange.Name, jorRange) + "##" + control.ID, ref val, jorRange.RangeMin, jorRange.RangeMax);
-                        jorRange.SetValue(server, val);
+                        if (ImGui.SliderFloat(GetText(jorRange.Name, jorRange) + "##" + control.ID, ref val, jorRange.RangeMin, jorRange.RangeMax))
+                            jorRange.SetValue(server, val);
                         break;
                     }
                 case "CMBX": // ComboBox
@@ -162,9 +189,9 @@ namespace MCHI.Gui
                         for (int i = 0; i < jorSelector.Items.Count; i++)
                             names[i] = jorSelector.Items[i].Name;
 
-                        var val = (int)jorSelector.SelectedIndex;
-                        ImGui.Combo(GetText(jorSelector.Name, jorSelector) + "##" + control.ID, ref val, names, names.Length);
-                        jorSelector.SetSelectedIndex(server, (uint)val);
+                        var val = (int)jorSelector.GetSelectedIndex();
+                        if (ImGui.Combo(GetText(jorSelector.Name, jorSelector) + "##" + control.ID, ref val, names, names.Length))
+                            jorSelector.SetSelectedIndex(server, (uint)val);
 
                         break;
                     }
@@ -175,7 +202,7 @@ namespace MCHI.Gui
                         for (int i = 0; i < jorSelector.Items.Count; i++)
                             names[i] = jorSelector.Items[i].Name;
 
-                        var val = (int)jorSelector.SelectedIndex;
+                        var val = (int)jorSelector.GetSelectedIndex();
                         ImGui.Combo(GetText(jorSelector.Name, jorSelector) + "##" + control.ID, ref val, names, names.Length);
                         jorSelector.SetSelectedIndex(server, (uint)val);
 
@@ -205,6 +232,9 @@ namespace MCHI.Gui
                     DrawStyledTextInstance($"Unimplemented control '{control.Type}'", 0xFF0000FF);
                     break;
             }
+
+            if (highlightColor.HasValue)
+                ImGui.PopStyleColor();
         }
 
         private static void EnsureTranslation(JORControlSelectorItem jorSelectorItem)
@@ -232,6 +262,62 @@ namespace MCHI.Gui
                 EnsureTranslation(jorControl);
             foreach (var childJorNode in jorNode.Controls)
                 EnsureTranslation(childJorNode);
+        }
+
+        private static string currentSearchString = "";
+
+        private static bool MatchesSearchString(string text, JORControl jorControl)
+        {
+            if (String.IsNullOrEmpty(currentSearchString))
+                return false;
+
+            var lowerSearchString = currentSearchString.ToLower();
+            if (text.ToLower().Contains(lowerSearchString))
+                return true;
+
+            var translatedText = translationDictionary.Translate(text, jorControl);
+            if (translatedText.ToLower().Contains(lowerSearchString))
+                return true;
+
+            return false;
+        }
+
+        private static Vector4? GetHighlightColor(JORControl jorControl)
+        {
+            if (MatchesSearchString(jorControl.Name, jorControl))
+                return new Vector4(0xFF, 0x00, 0xFF, 0xFF);
+
+            if (jorControl is JORControlSelector)
+            {
+                var jorSelector = jorControl as JORControlSelector;
+                foreach (var item in jorSelector.Items)
+                    if (MatchesSearchString(item.Name, jorControl))
+                        return new Vector4(0x00, 0xFF, 0x00, 0xFF);
+            }
+
+            return null;
+        }
+
+        public static Vector4? GetHighlightColor(JORNode jorNode)
+        {
+            if (MatchesSearchString(jorNode.Name, null))
+                return new Vector4(0xFF, 0x00, 0xFF, 0xFF);
+
+            foreach (var jorControl in jorNode.Controls)
+            {
+                var controlHighlightColor = GetHighlightColor(jorControl);
+                if (controlHighlightColor != null)
+                    return controlHighlightColor;
+            }
+
+            foreach (var childJorNode in jorNode.Children)
+            {
+                var childHighlightColor = GetHighlightColor(childJorNode);
+                if (childHighlightColor != null)
+                    return childHighlightColor;
+            }
+
+            return null;
         }
 
         static int largestBufferUntil0 = 1;
@@ -278,6 +364,7 @@ namespace MCHI.Gui
                     manager.jorServer.SendGetRootObjectRef();
 
                 ImGui.Checkbox("Use Translation", ref UseTranslation);
+                ImGui.InputText("Search", ref currentSearchString, 100);
 
                 ImGui.BeginChild("JorTreeContainer");
                 DrawTree(jorServer, jorServer.Root.TreeRoot);
