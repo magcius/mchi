@@ -68,10 +68,12 @@ namespace ImGuiNET
                 var rangesBuilder = new ImFontGlyphRangesBuilderPtr(ImGuiNative.ImFontGlyphRangesBuilder_ImFontGlyphRangesBuilder());
                 rangesBuilder.AddRanges(io.Fonts.GetGlyphRangesJapanese());
                 rangesBuilder.AddRanges(io.Fonts.GetGlyphRangesChineseFull());
-                ushort[] extraCharsRange = { 0x25A0, 0x25FF, // geometric shapes,
+                ushort[] extraCharsRange = {
+                    0x25A0, 0x25FF, // geometric shapes,
                     0x2000, 0x206F, // general punctuation
                     0xFF00, 0xFFEF, // halfwidth and fullwidth forms
                     0x2600, 0x26FF, // misc symbols
+                    0x2190, 0x21FF, // arrows
                     0
                 };
                 fixed (ushort* extraCharsRangePtr = extraCharsRange)
