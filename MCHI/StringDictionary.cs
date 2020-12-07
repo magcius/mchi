@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.IO;
 using System.Diagnostics;
 using System.Timers;
+using System.Threading;
 
 namespace MCHI
 {
@@ -11,12 +12,39 @@ namespace MCHI
     {
         private Dictionary<string, string> lut;
         private string dictPath;
+        private FileSystemWatcher fileWatcher;
+        private Debouncer saveDebouncer;
 
         public StringDictionary(string dictPath)
         {
             this.dictPath = dictPath;
             saveDebouncer = new Debouncer(200 /* ms */, (Object src, ElapsedEventArgs e) => SaveDict());
+
             Reload();
+            SaveDict();
+
+            fileWatcher = new FileSystemWatcher();
+            fileWatcher.Path = Path.GetDirectoryName(dictPath);
+            fileWatcher.Filter = Path.GetFileName(dictPath);
+            fileWatcher.Changed += OnDictFileUpdated;
+
+            fileWatcher.EnableRaisingEvents = true;
+        }
+
+        private void OnDictFileUpdated(object source, FileSystemEventArgs e)
+        {
+            while (true)
+            {
+                try
+                {
+                    Reload();
+                    return;
+                }
+                catch (IOException)
+                {
+                    Thread.Sleep(10);
+                }
+            }
         }
 
         public void Reload()
@@ -25,12 +53,10 @@ namespace MCHI
             {
                 var json = File.ReadAllText(dictPath);
                 lut = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-                SaveDict(); // reformat
             }
             else
             {
                 lut = new Dictionary<string, string>();
-                SaveDict();
             }
         }
 
@@ -53,8 +79,6 @@ namespace MCHI
             // might need context at some point if we want to deal with ex labels that have wide-ranging %d params
             return Translate(jp);
         }
-
-        private Debouncer saveDebouncer;
 
         public string Translate(string jp)
         {
@@ -82,13 +106,13 @@ namespace MCHI
 
 class Debouncer
 {
-    private Timer timer;
+    private System.Timers.Timer timer;
     private double timeout_ms;
 
     public Debouncer(double timeout_ms, ElapsedEventHandler action)
     {
         this.timeout_ms = timeout_ms;
-        timer = new Timer(timeout_ms);
+        timer = new System.Timers.Timer(timeout_ms);
         timer.AutoReset = false;
         timer.Elapsed += action;
     }
