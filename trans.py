@@ -1,5 +1,6 @@
 import json
 import time
+import itertools
 import regex as re
 from dataclasses import dataclass
 import click
@@ -23,6 +24,14 @@ def is_char_jp(c):
 
 def is_str_jp(string):
     return any(is_char_jp(c) for c in string)
+
+def grouper(n, iterable):
+    it = iter(iterable)
+    while True:
+       chunk = tuple(itertools.islice(it, n))
+       if not chunk:
+           return
+       yield chunk
 
 class Deepl:
     TRANS_ENDPOINT = 'https://api.deepl.com/v2/translate'
@@ -52,7 +61,7 @@ class Deepl:
         resp = r.json()
         translations = r.json()['translations']
 
-        return Deepl.Translation(**translations[0])
+        return [Deepl.Translation(**t) for t in translations]
 
 @click.group()
 @click.argument('db', type=click.Path())
@@ -92,10 +101,16 @@ def deepl(ctx, api_key):
 
     deepl = Deepl(api_key)
 
-    for k, v in tqdm([item for item in db.items()
-                       if item[1] is None and is_str_jp(item[0])]):
-        db[k] = deepl.trans(k, src_lang='JPN', preserve_formatting=True).text
-        tqdm.write(f'{k} -> {db[k]}')
+
+    BATCH_SIZE = 50
+    to_translate = [item[0] for item in db.items()
+                    if item[1] is None and is_str_jp(item[0])]
+
+    for source_text in tqdm(grouper(BATCH_SIZE, to_translate), total=len(to_translate)//BATCH_SIZE): # max batch size for deepl is 50
+        translations = deepl.trans(source_text, src_lang='JA', preserve_formatting=True)
+        for original, translation in zip(source_text, translations):
+            tqdm.write(f'{original} -> {translation.text}')
+            db[original] = translation.text
 
         # write every time in case we ^C. don't wanna lose progress, deepl is $$$
         with click.open_file(ctx.obj['out_path'], 'w') as f:
