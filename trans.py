@@ -102,7 +102,7 @@ def deepl(ctx, api_key):
     deepl = Deepl(api_key)
 
 
-    BATCH_SIZE = 50
+    BATCH_SIZE = 20
     to_translate = [item[0] for item in db.items()
                     if item[1] is None and is_str_jp(item[0])]
 
