@@ -17,7 +17,6 @@ namespace MCHI.Gui
 
         private static ImGuiController _controller;
         private static Vector3 _clearColor = new Vector3(0.45f, 0.55f, 0.6f);
-        public static JORNode CurrentEditNode;
 
         public static StringDictionary translationDictionary = new StringDictionary("../../../tp_dict.json");
         public static bool UseTranslation = true;
@@ -90,7 +89,7 @@ namespace MCHI.Gui
             int styleColorPushCount = 0;
 
             var treeNodeFlags = ImGuiTreeNodeFlags.OpenOnDoubleClick | ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanFullWidth;
-            if (node == CurrentEditNode)
+            if (node == server.CurrentNode)
                 treeNodeFlags |= ImGuiTreeNodeFlags.Selected;
             if (node.Children.Count == 0)
             {
@@ -114,7 +113,7 @@ namespace MCHI.Gui
             bool treeNodeOpen = ImGui.TreeNodeEx(nodeLabel + "##" + node.NodePtr, treeNodeFlags);
             ImGui.PopStyleColor(styleColorPushCount);
             if (ImGui.IsItemClicked())
-                CurrentEditNode = node;
+                server.SetCurrentNode(node);
             if (treeNodeOpen)
             {
                 foreach (JORNode jorNode in node.Children)
@@ -152,6 +151,8 @@ namespace MCHI.Gui
                 case "BUTN": // Button
                     {
                         var jorButton = control as JORControlButton;
+                        var disabled = (jorButton.Style & 0x40000000) != 0;
+                        // ImGUI.NET doesn't have a way to set disabled flag
                         if (ImGui.Button(GetText(jorButton.Name, jorButton) + "##" + control.ID))
                             jorButton.Click(server);
                         break;
@@ -346,10 +347,6 @@ namespace MCHI.Gui
                     largestBufferUntil0 = datsize;
                 ImGui.ProgressBar((largestBufferUntil0 - (float)datsize) / (float)largestBufferUntil0);
             }
-            else
-            {
-                CurrentEditNode = null;
-            }
 
             DrawStyledTextInstance(statusText, statusTextColor);
 
@@ -375,9 +372,9 @@ namespace MCHI.Gui
                 ImGui.SetWindowPos(new Vector2(windowX, 0), ImGuiCond.Once);
                 ImGui.SetWindowSize(new Vector2(_window.Width - windowX, _window.Height));
 
-                if (CurrentEditNode != null && CurrentEditNode.Status == JORNodeStatus.Valid)
+                if (jorServer.CurrentNode != null && jorServer.CurrentNode.Status == JORNodeStatus.Valid)
                 {
-                    foreach (JORControl control in CurrentEditNode.Controls)
+                    foreach (JORControl control in jorServer.CurrentNode.Controls)
                         DrawControlContainer(jorServer, control);
                 }
 

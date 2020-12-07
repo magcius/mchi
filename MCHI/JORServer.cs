@@ -149,6 +149,12 @@ namespace MCHI
         ResultU32           = 0x0F,
     };
 
+    enum JORNodeEventType
+    {
+        CurrentNodeChanged = 0x03,
+        // Expand / Collapse? They're parsed but unused in TP.
+    };
+
     // Dolphin -> PC
     enum JORMessageType
     {
@@ -208,8 +214,7 @@ namespace MCHI
         {
             if ((updateMode & 0x01) != 0)
             {
-                // Style?
-                uint unk1 = stream.ReadU32();
+                Style = stream.ReadU32();
             }
         }
 
@@ -570,8 +575,15 @@ namespace MCHI
         {
             if (this.Status == JORNodeStatus.Invalid)
             {
-                // Wait half a second before requesting an invalid node again.
-                return (DateTime.Now - this.LastInvalidTime).Milliseconds > 500;
+                if (this.Name == "root")
+                {
+                    // Wait a second before requesting the root node again.
+                    return (DateTime.Now - this.LastInvalidTime).Seconds > 3;
+                }
+                else
+                {
+                    return true;
+                }
             }
 
             return false;
@@ -618,6 +630,7 @@ namespace MCHI
     class JORServer : IJHITagProcessor
     {
         public JORRoot Root = new JORRoot();
+        public JORNode CurrentNode;
         private JHIClient client;
 
         public JORServer(JHIClient client)
@@ -664,6 +677,25 @@ namespace MCHI
             SendEvent(stream);
             node.Status = JORNodeStatus.GenRequestSent;
             node.LastRequestTime = DateTime.Now;
+        }
+
+        private void SendNodeEvent(JORNode node, JORNodeEventType type)
+        {
+            MemoryOutputStream stream = this.BeginSendEvent(JOREventType.NodeEvent);
+            stream.Write(node.NodePtr);
+            stream.Write((uint)type);
+            this.SendEvent(stream);
+        }
+
+        public void SetCurrentNode(JORNode node)
+        {
+            if (node == CurrentNode)
+                return;
+
+            CurrentNode = node;
+
+            if (CurrentNode != null)
+                SendNodeEvent(CurrentNode, JORNodeEventType.CurrentNodeChanged);
         }
 
         public void SendResultU32(uint retPtr, uint value = 1)
@@ -1032,6 +1064,9 @@ namespace MCHI
         {
             foreach (var node in this.Root.TreeRoot.DepthFirstIter())
                 node.Update(this);
+
+            if (CurrentNode != null && CurrentNode.Status == JORNodeStatus.Invalid)
+                CurrentNode = null;
         }
     }
 }
