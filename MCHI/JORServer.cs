@@ -199,6 +199,11 @@ namespace MCHI
         {
         }
 
+        public virtual bool MatchesID(uint id, uint subID)
+        {
+            return this.ID == id;
+        }
+
         public virtual void Update(uint updateMode, MemoryInputStream stream)
         {
             if ((updateMode & 0x01) != 0)
@@ -255,11 +260,16 @@ namespace MCHI
         public uint Mask = 0;
         public bool Value = false;
 
+        public override bool MatchesID(uint id, uint subID)
+        {
+            if (!base.MatchesID(id, subID))
+                return false;
+
+            return subID == 0 || Mask == subID;
+        }
+
         public override void Update(uint updateMode, MemoryInputStream stream)
         {
-            // ???
-            uint maskAgain = stream.ReadU32();
-
             base.Update(updateMode, stream);
 
             if ((updateMode & 0x02) != 0)
@@ -501,7 +511,7 @@ namespace MCHI
         public List<JORControl> Controls = new List<JORControl>();
         public List<JORNode> Children = new List<JORNode>();
 
-        public JORControl FindControlByID(uint id)
+        public JORControl FindControlByID(uint id, uint subID)
         {
             foreach (var control in Controls)
                 if (control.ID == id)
@@ -874,12 +884,25 @@ namespace MCHI
                 {
                     uint updateMode = stream.ReadU32();
                     uint id = stream.ReadU32();
-                    var control = node.FindControlByID(id);
+                    var control = node.FindControlByID(id, 0);
 
                     if (control == null)
                     {
                         // No clue about this control; can't parse.
                         return;
+                    }
+
+                    if (control is JORControlCheckBox)
+                    {
+                        // Checkboxes can have multiple controls with the same ID.
+                        uint subID = stream.ReadU32();
+                        control = node.FindControlByID(id, subID);
+
+                        if (control == null)
+                        {
+                            // Shouldn't happen, but just in case...
+                            return;
+                        }
                     }
 
                     control.Update(updateMode, stream);
