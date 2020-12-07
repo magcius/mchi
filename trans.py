@@ -156,5 +156,23 @@ def grep(ctx, regex, search):
     json.dump({k:v for k, v in db.items() if pred(k, v)}, sys.stdout, indent=2, ensure_ascii=False)
     print()
 
+@cli.command()
+@click.pass_context
+def fixup_dingbats(ctx):
+    # ■
+
+    with click.open_file(ctx.obj['db_path'], 'r') as f:
+        db = json.load(f)
+
+    r = re.compile(r'([\p{GeometricShapes}\s]+)(.*)([\p{GeometricShapes}\s])')
+    for k, v in db.items():
+        if v is not None:
+            if m := r.match(k):
+                if not r.match(v):
+                    db[k] = f'{m.group(1)}{v}{m.group(3)}'
+
+    with click.open_file(ctx.obj['out_path'], 'w') as f:
+        json.dump(db, f, indent=2, ensure_ascii=False)
+
 if __name__ == '__main__':
     cli(obj={})
