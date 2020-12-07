@@ -260,6 +260,10 @@ namespace MCHI.Gui
                     largestBufferUntil0 = datsize;
                 ImGui.ProgressBar((largestBufferUntil0 - (float)datsize) / (float)largestBufferUntil0);
             }
+            else
+            {
+                CurrentEditNode = null;
+            }
 
             DrawStyledTextInstance(statusText, statusTextColor);
 
