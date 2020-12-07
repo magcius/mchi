@@ -67,10 +67,16 @@ namespace ImGuiNET
             {
                 var rangesBuilder = new ImFontGlyphRangesBuilderPtr(ImGuiNative.ImFontGlyphRangesBuilder_ImFontGlyphRangesBuilder());
                 rangesBuilder.AddRanges(io.Fonts.GetGlyphRangesJapanese());
-                ushort[] geometricShapesRange = { 0x25A0, 0x25FF, 0 };
-                fixed (ushort* geometricShapesRangePtr = geometricShapesRange)
+                rangesBuilder.AddRanges(io.Fonts.GetGlyphRangesChineseFull());
+                ushort[] extraCharsRange = { 0x25A0, 0x25FF, // geometric shapes,
+                    0x2000, 0x206F, // general punctuation
+                    0xFF00, 0xFFEF, // halfwidth and fullwidth forms
+                    0x2600, 0x26FF, // misc symbols
+                    0
+                };
+                fixed (ushort* extraCharsRangePtr = extraCharsRange)
                 {
-                    rangesBuilder.AddRanges((IntPtr)geometricShapesRangePtr);
+                    rangesBuilder.AddRanges((IntPtr)extraCharsRangePtr);
                     rangesBuilder.BuildRanges(out ranges);
                 }
             }
@@ -247,7 +253,7 @@ namespace ImGuiNET
             Assembly assembly = typeof(ImGuiController).Assembly;
             using (Stream s = assembly.GetManifestResourceStream(resourceName))
             {
-   
+
                 byte[] ret = new byte[s.Length];
                 s.Read(ret, 0, (int)s.Length);
                 return ret;
