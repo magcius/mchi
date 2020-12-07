@@ -62,7 +62,19 @@ namespace ImGuiNET
             IntPtr context = ImGui.CreateContext();
             ImGui.SetCurrentContext(context);
             var io = ImGui.GetIO();
-            ImFontPtr font = io.Fonts.AddFontFromFileTTF("../../../NotoSansCJKjp-Medium.otf", 24.0f, null, io.Fonts.GetGlyphRangesJapanese());
+            ImVector ranges;
+            unsafe
+            {
+                var rangesBuilder = new ImFontGlyphRangesBuilderPtr(ImGuiNative.ImFontGlyphRangesBuilder_ImFontGlyphRangesBuilder());
+                rangesBuilder.AddRanges(io.Fonts.GetGlyphRangesJapanese());
+                ushort[] geometricShapesRange = { 0x25A0, 0x25FF, 0 };
+                fixed (ushort* geometricShapesRangePtr = geometricShapesRange)
+                {
+                    rangesBuilder.AddRanges((IntPtr)geometricShapesRangePtr);
+                    rangesBuilder.BuildRanges(out ranges);
+                }
+            }
+            ImFontPtr font = io.Fonts.AddFontFromFileTTF("../../../NotoSansCJKjp-Medium.otf", 24.0f, null, ranges.Data);
 
             CreateDeviceResources(gd, outputDescription);
             SetKeyMappings();
