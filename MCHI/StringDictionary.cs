@@ -5,6 +5,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Timers;
 using System.Threading;
+using System.Linq;
 
 namespace MCHI
 {
@@ -58,6 +59,14 @@ namespace MCHI
             {
                 lut = new Dictionary<string, string>();
             }
+
+#if false
+            // purge ASCII keys from dict
+            foreach (var key in lut.Keys)
+                if (!ShouldTranslateString(key))
+                    lut.Remove(key);
+            SaveDict();
+#endif
         }
 
         public void SaveDict()
@@ -74,6 +83,12 @@ namespace MCHI
             }
         }
 
+        private bool ShouldTranslateString(string jp)
+        {
+            // Any strings that match only ASCII shouldn't need translation (probably an internal name).
+            return jp.Any(c => c > 0x7F);
+        }
+
         public string Translate(string jp, JORControl context)
         {
             // might need context at some point if we want to deal with ex labels that have wide-ranging %d params
@@ -82,6 +97,9 @@ namespace MCHI
 
         public string Translate(string jp)
         {
+            if (!ShouldTranslateString(jp))
+                return jp;
+
             if (lut.TryGetValue(jp, out string en))
             {
                 return en ?? jp;
@@ -98,8 +116,10 @@ namespace MCHI
 
         public void EnsureKey(string jp)
         {
-            if (!lut.ContainsKey(jp))
-                lut.Add(jp, null);
+            if (!ShouldTranslateString(jp))
+                return;
+
+            lut.TryAdd(jp, null);
         }
     }
 }
