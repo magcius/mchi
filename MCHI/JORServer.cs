@@ -521,6 +521,7 @@ namespace MCHI
         public uint flag2;
         public JORNodeStatus Status = JORNodeStatus.Invalid;
         public DateTime LastRequestTime;
+        public DateTime LastInvalidTime;
 
         public List<JORControl> Controls = new List<JORControl>();
         public List<JORNode> Children = new List<JORNode>();
@@ -562,6 +563,24 @@ namespace MCHI
             this.Status = JORNodeStatus.Invalid;
             this.Controls.Clear();
             this.Children.Clear();
+            this.LastInvalidTime = DateTime.Now;
+        }
+
+        private bool ShouldRequestGenObjectInfo()
+        {
+            if (this.Status == JORNodeStatus.Invalid)
+            {
+                // Wait half a second before requesting an invalid node again.
+                return (DateTime.Now - this.LastInvalidTime).Milliseconds > 500;
+            }
+
+            return false;
+        }
+
+        public void Update(JORServer jorServer)
+        {
+            if (this.ShouldRequestGenObjectInfo())
+                jorServer.SendGenObjectInfo(this);
         }
 
         public IEnumerable<JORNode> DepthFirstIter()
@@ -1012,10 +1031,7 @@ namespace MCHI
         public void Update()
         {
             foreach (var node in this.Root.TreeRoot.DepthFirstIter())
-            {
-                if (node.Status == JORNodeStatus.Invalid)
-                    SendGenObjectInfo(node);
-            }
+                node.Update(this);
         }
     }
 }
