@@ -133,8 +133,8 @@ namespace MCHI.Gui
                     {
                         var jorCheckbox = control as JORControlCheckBox;
                         var val = jorCheckbox.Value;
-                        ImGui.Checkbox(GetText(jorCheckbox.Name, jorCheckbox) + "##" + control.ID, ref val);
-                        jorCheckbox.SetValue(server, val);
+                        if (ImGui.Checkbox(GetText(jorCheckbox.Name, jorCheckbox) + "##" + jorCheckbox.ID + jorCheckbox.Mask, ref val))
+                            jorCheckbox.SetValue(server, val);
                         break;
                     }
                 case "RNGi": // Integer Range

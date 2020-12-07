@@ -275,7 +275,7 @@ namespace MCHI
         {
             var stream = BeginSendPropertyEvent(server);
             stream.Write(4);
-            stream.Write((ushort)(Value ? 0x01 : 0x00));
+            stream.Write((ushort)(Value ? Mask : 0x00));
             stream.Write((ushort)Mask);
             server.SendEvent(stream);
         }
