@@ -1,10 +1,12 @@
 import json
 import time
+import regex as re
 from dataclasses import dataclass
 import click
 from tqdm import tqdm
 import requests
 from requests.packages.urllib3.util.retry import Retry
+import sys
 
 JP_ID_RANGES = [
     (ord("\u4e00"), ord("\u9FFC")), # CJK Unified Ideographs
@@ -92,7 +94,7 @@ def deepl(ctx, api_key):
 
     for k, v in tqdm([item for item in db.items()
                        if item[1] is None and is_str_jp(item[0])]):
-        db[k] = deepl.trans(k, preserve_formatting=True).text
+        db[k] = deepl.trans(k, src_lang='JPN', preserve_formatting=True).text
         tqdm.write(f'{k} -> {db[k]}')
 
         # write every time in case we ^C. don't wanna lose progress, deepl is $$$
@@ -120,6 +122,24 @@ def stats(ctx):
     print(f'total: {total}')
     print(f'translated: {translated} ({translated/total * 100:.1f}%)')
     print(f'jp: {jp} ({jp/total * 100:.1f}%)')
+
+@cli.command()
+@click.argument('regex')
+@click.option('--search', type=click.Choice(['original', 'translation'], case_sensitive=False), default='original')
+@click.pass_context
+def grep(ctx, regex, search):
+    regex = re.compile(regex)
+
+    with click.open_file(ctx.obj['db_path'], 'r') as f:
+        db = json.load(f)
+
+    def pred(k, v):
+        if search == 'original':
+            return regex.search(k) is not None 
+        elif search == 'translation':
+            return (regex.search(v) is not None) if v is not None else False
+    json.dump({k:v for k, v in db.items() if pred(k, v)}, sys.stdout, indent=2, ensure_ascii=False)
+    print()
 
 if __name__ == '__main__':
     cli(obj={})
