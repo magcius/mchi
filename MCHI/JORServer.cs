@@ -275,7 +275,7 @@ namespace MCHI
         {
             var stream = BeginSendPropertyEvent(server);
             stream.Write(4);
-            stream.Write((ushort)(Value ? 0x01 : 0x00));
+            stream.Write((ushort)(Value ? Mask : 0x00));
             stream.Write((ushort)Mask);
             server.SendEvent(stream);
         }
@@ -398,6 +398,30 @@ namespace MCHI
         public override void Update(uint updateMode, MemoryInputStream stream)
         {
             base.Update(updateMode, stream);
+
+            if ((updateMode & 0x08) != 0)
+            {
+                // Modifying items
+                var cmd = stream.ReadU32();
+                var style = stream.ReadU32();
+                var name = stream.ReadSJIS();
+                var value = stream.ReadU32();
+
+                if (cmd == 1)
+                {
+                    // Add new item to end.
+                    var newItem = new JORControlSelectorItem();
+                    newItem.Name = name;
+                    newItem.Value = value;
+                    newItem.Unk3 = style;
+                    Items.Add(newItem);
+                }
+                else if (cmd == 5)
+                {
+                    // Remove all items.
+                    Items.Clear();
+                }
+            }
 
             if ((updateMode & 0x02) != 0)
             {
@@ -838,11 +862,13 @@ namespace MCHI
 
         private void ProcessUpdateNode(MemoryInputStream stream, JORNode node)
         {
+            Debug.WriteLine("<- ORef ProcessUpdate CMD {0}", JHI.HexDump(stream.data));
+
             while (stream.HasData())
             {
                 JORMessageCommand command = (JORMessageCommand)stream.ReadU32();
 
-                // Debug.WriteLine("<- ORef ProcessUpdate {0}", command);
+                Debug.WriteLine("<- ORef ProcessUpdate {0}", command);
 
                 if (command == JORMessageCommand.UpdateControl)
                 {
