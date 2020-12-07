@@ -187,7 +187,7 @@ namespace MCHI.Gui
 
                         var names = new string[jorSelector.Items.Count];
                         for (int i = 0; i < jorSelector.Items.Count; i++)
-                            names[i] = jorSelector.Items[i].Name;
+                            names[i] = GetText(jorSelector.Items[i].Name, jorSelector);
 
                         var val = (int)jorSelector.GetSelectedIndex();
                         if (ImGui.Combo(GetText(jorSelector.Name, jorSelector) + "##" + control.ID, ref val, names, names.Length))
@@ -200,7 +200,7 @@ namespace MCHI.Gui
                         var jorSelector = control as JORControlSelector;
                         var names = new string[jorSelector.Items.Count];
                         for (int i = 0; i < jorSelector.Items.Count; i++)
-                            names[i] = jorSelector.Items[i].Name;
+                            names[i] = GetText(jorSelector.Items[i].Name, jorSelector);
 
                         var val = (int)jorSelector.GetSelectedIndex();
                         ImGui.Combo(GetText(jorSelector.Name, jorSelector) + "##" + control.ID, ref val, names, names.Length);
@@ -260,7 +260,7 @@ namespace MCHI.Gui
                 translationDictionary.EnsureKey(jorNode.Name);
             foreach (var jorControl in jorNode.Controls)
                 EnsureTranslation(jorControl);
-            foreach (var childJorNode in jorNode.Controls)
+            foreach (var childJorNode in jorNode.Children)
                 EnsureTranslation(childJorNode);
         }
 
