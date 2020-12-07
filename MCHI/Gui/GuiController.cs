@@ -106,10 +106,11 @@ namespace MCHI.Gui
             if (control.Node.Status == JORNodeStatus.Invalid)
                 return;
 
+            var scale = 2.0f;
             if (control.Location.X != -1 && control.Location.Y != -1)
             {
-                ImGui.SetCursorPosX(control.Location.X);
-                ImGui.SetCursorPosY(control.Location.Y);
+                ImGui.SetCursorPosX(control.Location.X * scale);
+                ImGui.SetCursorPosY(control.Location.Y * scale);
             }
             ImGui.SetNextItemWidth(control.Location.Width);
 
@@ -194,7 +195,7 @@ namespace MCHI.Gui
                         jorEdit.SetValue(server, newBuff);
                         break;
                     }
-                case "GBRX": // GroupBox
+                case "GRBX": // GroupBox
                     {
                         // Group boxes can have a text label, but they're never used in Twilight Princess.
                         ImGui.Separator();
@@ -239,8 +240,11 @@ namespace MCHI.Gui
         {
             ImGui.Begin("MAIN_WINDOW", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoTitleBar);
 
-            ImGui.SetWindowPos(new Vector2(0, 0), ImGuiCond.Once);
-            ImGui.SetWindowSize(new Vector2(350, 768));
+            var windowX = 0;
+            ImGui.SetWindowPos(new Vector2(windowX, 0), ImGuiCond.Once);
+            var leftPaneWidth = 350;
+            ImGui.SetWindowSize(new Vector2(leftPaneWidth, _window.Height));
+            windowX += leftPaneWidth + 1;
 
             var statusTextColor = 0xFF0000FF;
             var statusText = "Not Connected";
@@ -277,8 +281,8 @@ namespace MCHI.Gui
                 ImGui.End();
 
                 ImGui.Begin("CONTROL_WINDOW", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoTitleBar); // Init window
-                ImGui.SetWindowPos(new Vector2(351, 0), ImGuiCond.Once);
-                ImGui.SetWindowSize(new Vector2(673, 768), ImGuiCond.Once);
+                ImGui.SetWindowPos(new Vector2(windowX, 0), ImGuiCond.Once);
+                ImGui.SetWindowSize(new Vector2(_window.Width - windowX, _window.Height));
 
                 if (CurrentEditNode != null && CurrentEditNode.Status == JORNodeStatus.Valid)
                 {
