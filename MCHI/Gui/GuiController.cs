@@ -84,9 +84,9 @@ namespace MCHI.Gui
                 return;
             }
 
+            var nodeLabel = GetText(node.Name, null);
             if (node.Children != null && node.Children.Count != 0)
             {
-                var nodeLabel = GetText(node.Name, null);
                 if (ImGui.TreeNode(nodeLabel + "##" + node.NodePtr))
                 {
                     if (node.Controls.Count > 0 && ImGui.Selectable("$ - " + nodeLabel, CurrentEditNode == node))
@@ -97,7 +97,7 @@ namespace MCHI.Gui
                     ImGui.TreePop();
                 }
             }
-            else if (ImGui.Selectable(node.Name + "##" + node.NodePtr, CurrentEditNode == node))
+            else if (ImGui.Selectable(nodeLabel + "##" + node.NodePtr, CurrentEditNode == node))
                 CurrentEditNode = node;
         }
 
@@ -105,6 +105,14 @@ namespace MCHI.Gui
         {
             if (control.Node.Status == JORNodeStatus.Invalid)
                 return;
+
+            if (control.Location.X != -1 && control.Location.Y != -1)
+            {
+                ImGui.SetCursorPosX(control.Location.X);
+                ImGui.SetCursorPosY(control.Location.Y);
+            }
+            ImGui.SetNextItemWidth(control.Location.Width);
+
             switch (control.Type)
             {
                 case "LABL": // Label
@@ -124,7 +132,7 @@ namespace MCHI.Gui
                     {
                         var jorCheckbox = control as JORControlCheckBox;
                         var val = jorCheckbox.Value;
-                        ImGui.Checkbox(jorCheckbox.Name + "##" + control.ID, ref val);
+                        ImGui.Checkbox(GetText(jorCheckbox.Name, jorCheckbox) + "##" + control.ID, ref val);
                         jorCheckbox.SetValue(server, val);
                         break;
                     }
@@ -169,6 +177,7 @@ namespace MCHI.Gui
                         var val = (int)jorSelector.SelectedIndex;
                         ImGui.Combo(GetText(jorSelector.Name, jorSelector) + "##" + control.ID, ref val, names, names.Length);
                         jorSelector.SetSelectedIndex(server, (uint)val);
+
                         break;
                     }
                 case "EDBX": // EditBox
