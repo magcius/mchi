@@ -6,6 +6,8 @@ using System.Diagnostics;
 using System.Timers;
 using System.Threading;
 using System.Linq;
+using DeepL;
+using System.Threading.Tasks;
 
 namespace MCHI
 {
@@ -15,9 +17,17 @@ namespace MCHI
         private string dictPath;
         private FileSystemWatcher fileWatcher;
         private Debouncer saveDebouncer;
+        private DeepLClient DeepLClient;
 
         public StringDictionary(string dictPath)
         {
+            string API_KEY_FILE = "../../../deepl_api_key.txt";
+            if (File.Exists(API_KEY_FILE))
+            {
+                string apiKey = File.ReadAllText(API_KEY_FILE).Trim();
+                DeepLClient = new DeepLClient(apiKey);
+            }
+
             this.dictPath = dictPath;
             saveDebouncer = new Debouncer(200 /* ms */, (Object src, ElapsedEventArgs e) => SaveDict());
 
@@ -30,6 +40,33 @@ namespace MCHI
             fileWatcher.Changed += OnDictFileUpdated;
 
             fileWatcher.EnableRaisingEvents = true;
+        }
+
+        private async Task CloudTranslateAsync()
+        {
+            // Go through our dictionary looking for potential strings to translate.
+            var strings = new List<string>();
+            foreach (var jp in lut.Keys)
+                if (ShouldTranslateString(jp) && lut[jp] == null)
+                    strings.Add(jp);
+            if (strings.Count == 0)
+                return;
+            var result = (await DeepLClient.TranslateAsync(strings, Language.Japanese, Language.English, Splitting.None, true)).ToList();
+            for (var i = 0; i < strings.Count; i++)
+                lut[strings[i]] = result[i].Text;
+            SaveDict();
+        }
+
+        private bool IsTranslating = false;
+
+        public async void CloudTranslate()
+        {
+            if (IsTranslating)
+                return;
+
+            IsTranslating = true;
+            await CloudTranslateAsync();
+            IsTranslating = false;
         }
 
         private void OnDictFileUpdated(object source, FileSystemEventArgs e)

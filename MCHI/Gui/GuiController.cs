@@ -10,7 +10,6 @@ namespace MCHI.Gui
 {
     static class GuiController
     {
-
         private static Sdl2Window _window;
         private static GraphicsDevice _gd;
         private static CommandList _cl;
@@ -361,6 +360,8 @@ namespace MCHI.Gui
                     manager.jorServer.SendGetRootObjectRef();
 
                 ImGui.Checkbox("Use Translation", ref UseTranslation);
+                if (ImGui.Button("Request Translation"))
+                    translationDictionary.CloudTranslate();
                 ImGui.InputText("Search", ref currentSearchString, 100);
 
                 ImGui.BeginChild("JorTreeContainer");
