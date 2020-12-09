@@ -13,7 +13,7 @@ namespace MCHI
 {
     class StringDictionary
     {
-        private Dictionary<string, string> lut;
+        private Dictionary<string, string> translations = new Dictionary<string, string>();
         private string dictPath;
         private FileSystemWatcher fileWatcher;
         private Debouncer saveDebouncer;
@@ -32,7 +32,6 @@ namespace MCHI
             saveDebouncer = new Debouncer(200 /* ms */, (Object src, ElapsedEventArgs e) => SaveDict());
 
             Reload();
-            SaveDict();
 
             fileWatcher = new FileSystemWatcher();
             fileWatcher.Path = Path.GetDirectoryName(dictPath);
@@ -46,14 +45,14 @@ namespace MCHI
         {
             // Go through our dictionary looking for potential strings to translate.
             var strings = new List<string>();
-            foreach (var jp in lut.Keys)
-                if (ShouldTranslateString(jp) && lut[jp] == null)
+            foreach (var jp in translations.Keys)
+                if (ShouldTranslateString(jp) && translations[jp] == null)
                     strings.Add(jp);
             if (strings.Count == 0)
                 return;
             var result = (await DeepLClient.TranslateAsync(strings, Language.Japanese, Language.English, Splitting.None, true)).ToList();
             for (var i = 0; i < strings.Count; i++)
-                lut[strings[i]] = result[i].Text;
+                translations[strings[i]] = result[i].Text;
             SaveDict();
         }
 
@@ -90,25 +89,33 @@ namespace MCHI
             if (File.Exists(dictPath))
             {
                 var json = File.ReadAllText(dictPath);
-                lut = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                translations = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
             }
             else
             {
-                lut = new Dictionary<string, string>();
+                translations.Clear();
             }
 
-#if false
+#if true
             // purge ASCII keys from dict
-            foreach (var key in lut.Keys)
-                if (!ShouldTranslateString(key))
-                    lut.Remove(key);
-            SaveDict();
+            bool removedAny = false;
+            foreach (var key in translations.Keys)
+            {
+                if (!ShouldStoreInTranslationDictionary(key))
+                {
+                    translations.Remove(key);
+                    removedAny = true;
+                }
+            }
+
+            if (removedAny)
+                SaveDict();
 #endif
         }
 
         public void SaveDict()
         {
-            using (var fs = File.Open(dictPath, FileMode.OpenOrCreate))
+            using (var fs = File.Open(dictPath, FileMode.Create, FileAccess.Write))
             {
                 JsonSerializer.Serialize(
                     new Utf8JsonWriter(fs, new JsonWriterOptions
@@ -116,8 +123,29 @@ namespace MCHI
                         Indented = true,
                         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
                     }),
-                    lut);
+                    translations);
             }
+
+            saveDebouncer.Done();
+        }
+
+        private string[] specialTranslationPrefixes = new string[] {
+            "水平距離", // Horizontal Distance
+            "最頂点", // Apex
+        };
+
+        private string GetSpecialTranslation(string jp)
+        {
+            foreach (var prefix in specialTranslationPrefixes)
+            {
+                if (jp.StartsWith(prefix) && prefix != jp)
+                {
+                    var rest = jp.Substring(prefix.Length);
+                    return translations[prefix] + rest;
+                }
+            }
+
+            return null;
         }
 
         private bool ShouldTranslateString(string jp)
@@ -137,26 +165,38 @@ namespace MCHI
             if (!ShouldTranslateString(jp))
                 return jp;
 
-            if (lut.TryGetValue(jp, out string en))
+            var specialTranslation = GetSpecialTranslation(jp);
+            if (specialTranslation != null)
+                return specialTranslation;
+
+            if (translations.TryGetValue(jp, out string en))
             {
                 return en ?? jp;
             }
             else
             {
-                EnsureKey(jp);
-
-                saveDebouncer.Bounce();
+                if (EnsureKey(jp))
+                    saveDebouncer.Bounce();
 
                 return jp;
             }
         }
 
-        public void EnsureKey(string jp)
+        private bool ShouldStoreInTranslationDictionary(string jp)
         {
-            if (!ShouldTranslateString(jp))
-                return;
+            if (GetSpecialTranslation(jp) != null)
+                return false;
 
-            lut.TryAdd(jp, null);
+            return ShouldTranslateString(jp);
+        }
+
+        public bool EnsureKey(string jp)
+        {
+            if (!ShouldStoreInTranslationDictionary(jp))
+                return false;
+
+            translations.TryAdd(jp, null);
+            return true;
         }
     }
 }
@@ -180,5 +220,10 @@ class Debouncer
         timer.Stop();
         timer.Interval = timeout_ms;
         timer.Start();
+    }
+
+    public void Done()
+    {
+        timer.Stop();
     }
 }
