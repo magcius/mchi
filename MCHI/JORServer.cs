@@ -141,7 +141,7 @@ namespace MCHI
         GenObjectInfo       = 0x03,
         NodeEvent           = 0x06,
         PropertyEvent       = 0x07,
-        FIO                 = 0x08,
+        FIO                 = 0x09,
         ResultS32           = 0x0A,
         OR                  = 0x0B,
         Dir                 = 0x0D,
@@ -627,10 +627,23 @@ namespace MCHI
         }
     }
 
+    class JORFile
+    {
+        public int pointer;
+        public int flags;
+        public uint handle;
+        public string name;
+        public short extLength;
+        public short baseName;
+        public int size;
+
+    }
+
     class JORServer : IJHITagProcessor
     {
         public JORRoot Root = new JORRoot();
         public JORNode CurrentNode;
+        public Dictionary<int, JORFile> files = new Dictionary<int, JORFile>();
         private JHIClient client;
 
         public JORServer(JHIClient client)
@@ -751,6 +764,51 @@ namespace MCHI
             }
 
             return node;
+        }
+
+        public void ProcessJORFileCommand(MemoryInputStream stream)
+        {
+            var command = stream.ReadU32(); // 0x00 
+            switch (command) // ♪ we're gonna show you how to behave ♪
+            {
+                case (uint)JORFileCommand.OPEN:
+                    {
+                        var PFile = stream.ReadU32();
+                        var flag = stream.ReadU32();
+                        var handle = stream.ReadU32();
+
+                        var backStream = BeginSendEvent(JOREventType.FIO);
+                        backStream.Write(0x01u);
+                        backStream.Write(PFile);
+                        backStream.Write(0x00u);
+                        SendEvent(backStream);
+                        Debug.Write("JORFile command not supported!");
+
+                        break;
+                    }
+                case (uint)JORFileCommand.CLOSE:
+                    break;
+                case (uint)JORFileCommand.READ:
+                    break;
+                case (uint)JORFileCommand.WRITE:
+                    break;
+                case (uint)JORFileCommand.WRITE_SEND:
+                    break;
+                case (uint)JORFileCommand.WRITE_END:
+                    break;
+                default:
+                    throw new Exception("oops.");
+            }
+        }
+
+        enum JORFileCommand
+        {
+            OPEN = 0,
+            CLOSE = 1, 
+            READ = 2, 
+            WRITE = 3,
+            WRITE_SEND = 5, 
+            WRITE_END = 6
         }
 
         enum JORMessageCommand
@@ -1053,6 +1111,9 @@ namespace MCHI
                 // not actually gonna ShellExecute lol
                 Debug.WriteLine("<- ShellExecute {0} {1} {2} {3} {4}", str0, str1, str2, str3, unk4);
                 SendResultU32(retPtr);
+            } else if (messageType==JORMessageType.FIO)
+            {
+                ProcessJORFileCommand(stream);
             }
             else
             {
