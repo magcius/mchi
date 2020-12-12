@@ -768,8 +768,8 @@ namespace MCHI
 
         public void ProcessJORFileCommand(MemoryInputStream stream)
         {
-            var command = stream.ReadU32(); // 0x00 
-            switch (command) // ♪ we're gonna show you how to behave ♪
+            var command = stream.ReadU32(); 
+            switch (command) 
             {
                 case (uint)JORFileCommand.OPEN:
                     {
