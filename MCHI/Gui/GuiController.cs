@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Text;
 using System.Numerics;
 using Veldrid;
@@ -320,6 +321,24 @@ namespace MCHI.Gui
             return null;
         }
 
+        private static void AllSlidersToMax(JORServer jorServer, JORNode jorNode)
+        {
+            foreach (var jorControl in jorNode.Controls)
+            {
+                if (jorControl is JORControlRangeInt)
+                {
+                    var jorRange = jorControl as JORControlRangeInt;
+                    jorRange.SetValue(jorServer, jorRange.RangeMax);
+                }
+
+                if (jorControl is JORControlRangeFloat)
+                {
+                    var jorRange = jorControl as JORControlRangeFloat;
+                    jorRange.SetValue(jorServer, jorRange.RangeMax);
+                }
+            }
+        }
+
         static int largestBufferUntil0 = 1;
 
         public static void SubmitUI(JORManager manager)
@@ -373,9 +392,16 @@ namespace MCHI.Gui
                 ImGui.SetWindowPos(new Vector2(windowX, 0), ImGuiCond.Once);
                 ImGui.SetWindowSize(new Vector2(_window.Width - windowX, _window.Height));
 
-                if (jorServer.CurrentNode != null && jorServer.CurrentNode.Status == JORNodeStatus.Valid)
+                var node = jorServer.CurrentNode;
+                if (node != null && node.Status == JORNodeStatus.Valid)
                 {
-                    foreach (JORControl control in jorServer.CurrentNode.Controls)
+                    if (node.Controls.Any((control) => control.Type.StartsWith("RNG")))
+                    {
+                        if (ImGui.Button("ALL SLIDERS TO MAX"))
+                            AllSlidersToMax(jorServer, node);
+                    }
+
+                    foreach (JORControl control in node.Controls)
                         DrawControlContainer(jorServer, control);
                 }
 
