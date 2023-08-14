@@ -1,9 +1,11 @@
-﻿using System;
-using System.Threading;
+﻿
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
+using System.IO;
 using System.Text;
-
+using System.Windows.Forms;
 
 namespace MCHI
 {
@@ -29,7 +31,6 @@ namespace MCHI
             this.offset += size;
             return Encoding.ASCII.GetString(this.data, offset, size);
         }
-
         public float ReadF32()
         {
             int offset = this.offset;
@@ -77,6 +78,14 @@ namespace MCHI
             int offset = this.offset;
             this.offset += size;
             return sjis.GetString(this.data, offset, size);
+        }
+
+        public byte[] ReadBytes(int count)
+        {
+            byte[] data = new byte[count];
+            Array.Copy(this.data, this.offset, data, 0, count);
+            this.offset += count;
+            return data;
         }
     }
 
@@ -627,23 +636,20 @@ namespace MCHI
         }
     }
 
-    class JORFile
+    struct JORFile
     {
-        public int pointer;
-        public int flags;
-        public uint handle;
-        public string name;
-        public short extLength;
-        public short baseName;
-        public int size;
+        public FileStream Stream;
 
+        public uint Handle;
+        public uint Flags;
     }
 
     class JORServer : IJHITagProcessor
     {
         public JORRoot Root = new JORRoot();
         public JORNode CurrentNode;
-        public Dictionary<int, JORFile> files = new Dictionary<int, JORFile>();
+        public List<JORFile> files = new List<JORFile>();
+        private uint nextFileHandle = 1;
         private JHIClient client;
 
         public JORServer(JHIClient client)
@@ -718,7 +724,6 @@ namespace MCHI
             stream.Write(value);
             SendEvent(stream);
         }
-
         private void Assert(bool b)
         {
             if (!b)
@@ -766,35 +771,178 @@ namespace MCHI
             return node;
         }
 
+        private JORFile FindFile(uint handle)
+        {
+            foreach (var file in files)
+                if (file.Handle == handle)
+                    return file;
+            throw new Exception("whoops");
+        }
+
         public void ProcessJORFileCommand(MemoryInputStream stream)
         {
             var command = stream.ReadU32(); 
             switch (command) 
             {
-                case (uint)JORFileCommand.OPEN:
+                case (uint)JORFileCommand.Open:
                     {
-                        var PFile = stream.ReadU32();
+                        var pFile = stream.ReadU32();
                         var flag = stream.ReadU32();
-                        var handle = stream.ReadU32();
+                        var path = stream.ReadSJIS();
+                        var extMasks = stream.ReadSJIS().Replace("\0", "|");
+
+                        var read = (flag & 0x01) != 0;
+                        var write = (flag & 0x02) != 0;
+
+                        var suggestedExtension = ((flag & 0x10) != 0) ? stream.ReadSJIS() : "";
+                        var str7 = ((flag & 0x20) != 0) ? stream.ReadSJIS() : "";
+                        var suffix = ((flag & 0x40) != 0) ? stream.ReadSJIS() : "";
+
+                        JORFile file;
+                        file.Handle = ++this.nextFileHandle;
+                        file.Flags = flag;
+
+                        if (path != null && path != "")
+                        {
+                            FileMode mode = read ? FileMode.Open : FileMode.Create;
+                            file.Stream = File.Open(path, mode);
+                        }
+                        else
+                        {
+                            if (write)
+                            {
+                                SaveFileDialog saveFileDialog = new SaveFileDialog();
+                                saveFileDialog.Filter = extMasks;
+                                saveFileDialog.DefaultExt = suggestedExtension;
+                                saveFileDialog.FileName = suffix;
+                                saveFileDialog.ShowDialog();
+                                file.Stream = (FileStream)saveFileDialog.OpenFile();
+                            }
+                            else if (read)
+                            {
+                                OpenFileDialog openFileDialog = new OpenFileDialog();
+                                openFileDialog.Filter = extMasks;
+                                openFileDialog.Multiselect = false;
+                                openFileDialog.ShowDialog();
+                                file.Stream = (FileStream) openFileDialog.OpenFile();
+                            }
+                            else
+                            {
+                                throw new Exception("whoops");
+                            }
+                        }
+
+                        files.Add(file);
 
                         var backStream = BeginSendEvent(JOREventType.FIO);
-                        backStream.Write(0x01u);
-                        backStream.Write(PFile);
-                        backStream.Write(0x00u);
+                        backStream.Write((uint)JORFileCommand.Open);
+                        backStream.Write(pFile);
+                        backStream.Write(file.Handle);
+                        backStream.Write((uint)file.Stream.Length);
+                        backStream.Write((uint)file.Stream.Name.Length); // NFileName
+                        backStream.Write((uint)0); // NBaseName
+                        backStream.Write((ushort)0); // NExtensionName
                         SendEvent(backStream);
-                        Debug.Write("JORFile command not supported!");
 
                         break;
                     }
-                case (uint)JORFileCommand.CLOSE:
+                case (uint)JORFileCommand.Close:
+                    {
+                        var pFile = stream.ReadU32();
+                        var handle = stream.ReadU32();
+
+                        var file = FindFile(handle);
+
+                        file.Stream.Close();
+                        files.Remove(file);
+
+                        var backStream = BeginSendEvent(JOREventType.FIO);
+                        backStream.Write((uint)JORFileCommand.Close);
+                        backStream.Write(pFile);
+                        backStream.Write(1);
+                        SendEvent(backStream);
+                    }
                     break;
-                case (uint)JORFileCommand.READ:
+                case (uint)JORFileCommand.Read:
+                    {
+                        var stts = stream.ReadU32();
+                        var pFile = stream.ReadU32();
+                        var handle = stream.ReadU32();
+                        var file = FindFile(handle);
+
+                        if (stts == (uint)JORFileStatus.ReadBegin)
+                        {
+                            var size = stream.ReadU32();
+
+                            byte[] data = new byte[size];
+
+                            // TODO(jstpierre): Split file reads if t goes beyond a single packet...
+                            var position = file.Stream.Position;
+                            var actualSize = file.Stream.Read(data);
+
+                            var backStream = BeginSendEvent(JOREventType.FIO);
+                            backStream.Write((uint)JORFileCommand.Read);
+                            backStream.Write(pFile);
+                            backStream.Write((uint)JORFileStatus.WriteData);
+                            backStream.Write(position);
+                            backStream.Write(actualSize);
+                            backStream.Write(data);
+                            SendEvent(backStream);
+                        }
+                        else if (stts == (uint)JORFileStatus.ReadData)
+                        {
+                            var backStream = BeginSendEvent(JOREventType.FIO);
+                            backStream.Write((uint)JORFileCommand.Read);
+                            backStream.Write(pFile);
+                            backStream.Write((uint)JORFileStatus.WriteEnd);
+                            SendEvent(backStream);
+                        }
+                    }
                     break;
-                case (uint)JORFileCommand.WRITE:
-                    break;
-                case (uint)JORFileCommand.WRITE_SEND:
-                    break;
-                case (uint)JORFileCommand.WRITE_END:
+                case (uint)JORFileCommand.Write:
+                    {
+                        var stts = stream.ReadU32();
+                        var pFile = stream.ReadU32();
+                        var handle = stream.ReadU32();
+                        var file = FindFile(handle);
+
+                        if (stts == (uint)JORFileStatus.WriteBegin)
+                        {
+                            var size = stream.ReadU32();
+                            var flag = stream.ReadU32();
+
+                            file.Stream.SetLength(size);
+
+                            var backStream = BeginSendEvent(JOREventType.FIO);
+                            backStream.Write((uint)JORFileCommand.Write);
+                            backStream.Write(pFile);
+                            backStream.Write((uint)JORFileStatus.ReadBegin);
+                            SendEvent(backStream);
+                        }
+                        else if (stts == (uint)JORFileStatus.WriteData)
+                        {
+                            var pos = stream.ReadU32();
+                            var size = stream.ReadU16();
+
+                            file.Stream.Seek(pos, SeekOrigin.Begin);
+                            var data = stream.ReadBytes((int)size);
+                            file.Stream.Write(data);
+
+                            var backStream = BeginSendEvent(JOREventType.FIO);
+                            backStream.Write((uint)JORFileCommand.Write);
+                            backStream.Write(pFile);
+                            backStream.Write((uint)JORFileStatus.ReadData);
+                            SendEvent(backStream);
+                        }
+                        else if (stts == (uint)JORFileStatus.WriteEnd)
+                        {
+                            var backStream = BeginSendEvent(JOREventType.FIO);
+                            backStream.Write((uint)JORFileCommand.Write);
+                            backStream.Write(pFile);
+                            backStream.Write((uint)JORFileStatus.ReadEnd);
+                            SendEvent(backStream);
+                        }
+                    }
                     break;
                 default:
                     throw new Exception("oops.");
@@ -803,12 +951,20 @@ namespace MCHI
 
         enum JORFileCommand
         {
-            OPEN = 0,
-            CLOSE = 1, 
-            READ = 2, 
-            WRITE = 3,
-            WRITE_SEND = 5, 
-            WRITE_END = 6
+            Open = 0,
+            Close = 1, 
+            Read = 2, 
+            Write = 3,
+        }
+
+        enum JORFileStatus
+        {
+            ReadBegin = 1,
+            ReadData = 2,
+            ReadEnd = 3,
+            WriteBegin = 4,
+            WriteData = 5,
+            WriteEnd = 6,
         }
 
         enum JORMessageCommand
@@ -995,8 +1151,6 @@ namespace MCHI
 
         private void ProcessUpdateNode(MemoryInputStream stream, JORNode node)
         {
-            Debug.WriteLine("<- ORef ProcessUpdate CMD {0}", JHI.HexDump(stream.data));
-
             while (stream.HasData())
             {
                 JORMessageCommand command = (JORMessageCommand)stream.ReadU32();
@@ -1097,7 +1251,7 @@ namespace MCHI
                 uint style = stream.ReadU32();
                 string msg = stream.ReadSJIS();
                 string title = stream.ReadSJIS();
-                //MessageBox.Show(msg, title);
+                MessageBox.Show(msg, title);
                 SendResultU32(retPtr);
             }
             else if (messageType == JORMessageType.ShellExecute)
@@ -1111,7 +1265,8 @@ namespace MCHI
                 // not actually gonna ShellExecute lol
                 Debug.WriteLine("<- ShellExecute {0} {1} {2} {3} {4}", str0, str1, str2, str3, unk4);
                 SendResultU32(retPtr);
-            } else if (messageType==JORMessageType.FIO)
+            }
+            else if (messageType == JORMessageType.FIO)
             {
                 ProcessJORFileCommand(stream);
             }

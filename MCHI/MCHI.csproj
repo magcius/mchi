@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net7.0</TargetFramework>
-    <UseWindowsForms>false</UseWindowsForms>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <UseWindowsForms>True</UseWindowsForms>
     <StartupObject></StartupObject>
   </PropertyGroup>
 

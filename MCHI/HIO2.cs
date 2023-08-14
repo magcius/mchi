@@ -196,8 +196,6 @@ namespace MCHI
                 dataOffs += bytesToWrite;
                 this.pointW += fullSize;
 
-                Debug.WriteLine("HIO SZ: {0:X4} WP: {1:X4} RP: {2:X4}", fullSize, this.pointW, this.pointR);
-
                 if (this.pointW == this.bufDataSize)
                 {
                     // Reset us back home.

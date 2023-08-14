@@ -1,3 +1,5 @@
+using System;
+
 namespace MCHI
 {
     static class Program
@@ -6,6 +8,7 @@ namespace MCHI
         ///  The main entry point for the application.
         /// </summary>
 
+        [STAThread]
         public static void Main()
         {
             System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
